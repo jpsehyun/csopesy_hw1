@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <sstream>
 
 void printASCII() {
     std::cout << "CSOPESY\n";
@@ -27,6 +28,27 @@ bool checkKeyword(const std::string& input, const std::string keyword[], int siz
     return false;
 }
 
+// Function to parse and handle the 'screen' command
+void handleScreenCommand(const std::string& command) {
+    std::istringstream iss(command);
+    std::string screenCmd, option, name;
+    
+    iss >> screenCmd >> option >> name;
+
+    if (option == "-r") {
+        std::cout << "screen -r command recognized. Doing something..." << "\n";
+        // TODO: Add functionality 
+    } else if (option == "-ls") {
+        std::cout << "screen -ls command recognized. Doing something...\n";
+        // TODO: Add functionality 
+    } else if (option == "-s") {
+        std::cout << "screen -s command recognized. Doing something..." << "\n";
+        // TODO: Add functionality 
+    } else {
+        std::cout << "Invalid screen command! Try using -r, -ls, or -s.\n";
+    }
+}
+
 int main() {
     printASCII();
     printMessage();
@@ -48,17 +70,34 @@ int main() {
     int keywordSize = sizeof(keyword) / sizeof(keyword[0]);
 
     while (active) {
-        std::cin >> input;
-		
-        if (checkKeyword(input, keyword, keywordSize)) {
-            if (input == "exit") {
+    	
+        std::getline(std::cin, input); 
+        std::istringstream iss(input);
+        std::string command;
+        iss >> command; 
+
+        if (checkKeyword(command, keyword, keywordSize)) {
+            if (command == "exit") {
                 active = false;
-            } else if (input == "clear") {
+            } else if (command == "clear") {
                 system("cls"); 
                 printASCII();
                 printMessage();
-            } else {
-                acceptString(input);
+            } else if (command == "initialize") {
+                acceptString(command);
+                // TODO add function
+            } else if (command == "screen") {
+                handleScreenCommand(input);
+                // TODO add function
+            } else if (command == "scheduler-test") {
+                acceptString(command);
+                // TODO add function
+            } else if (command == "scheduler-stop") {
+                acceptString(command);
+                // TODO add function
+            } else if (command == "report-util") {
+                acceptString(command);
+                // TODO add function
             }
         } else {
             std::cout << "Command not recognized, check your input!\n";
@@ -67,3 +106,4 @@ int main() {
 
     return 0;
 }
+	
