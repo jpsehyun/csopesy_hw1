@@ -27,13 +27,10 @@ void handleScreenCommand(const std::string& command) {
 
     if (option == "-r") {
         std::cout << "screen -r command recognized. Doing something..." << "\n";
-        // TODO: Add functionality 
     } else if (option == "-ls") {
-        std::cout << "screen -ls command recognized. Doing something...\n";
-        // TODO: Add functionality 
+        std::cout << "screen -ls command recognized. Doing something...\n"; 
     } else if (option == "-s") {
         std::cout << "screen -s command recognized. Doing something..." << "\n";
-        // TODO: Add functionality 
     } else {
         std::cout << "Invalid screen command! Try using -r, -ls, or -s.\n";
     }
@@ -53,29 +50,29 @@ int main() {
         std::string command;
         iss >> command; 
 
-            if (command == "exit") {
-                active = false;
-            } else if (command == "clear") {
-                system("cls"); 
-                printASCII();
-                printMessage();
-            } else if (command == "initialize") {
-                acceptString(command);
-                // TODO add function
-            } else if (command == "screen") {
-                handleScreenCommand(input);
-                // TODO add function
-            } else if (command == "scheduler-test") {
-                acceptString(command);
-                // TODO add function
-            } else if (command == "scheduler-stop") {
-                acceptString(command);
-                // TODO add function
-            } else if (command == "report-util") {
-                acceptString(command);
-                // TODO add function
-            } else {
-            	std::cout << "Command not recognized, check your input!\n";
+        if (command == "exit") {
+            active = false;
+        } else if (command == "clear") {
+            system("cls"); 
+            printASCII();
+            printMessage();
+        } else if (command == "initialize") {
+            acceptString(command);
+            // TODO add function
+        } else if (command == "screen") {
+            handleScreenCommand(input);
+            // TODO add function
+        } else if (command == "scheduler-test") {
+            acceptString(command);
+            // TODO add function
+        } else if (command == "scheduler-stop") {
+            acceptString(command);
+            // TODO add function
+        } else if (command == "report-util") {
+            acceptString(command);
+            // TODO add function
+        } else {
+            std::cout << "Command not recognized, check your input!\n";
         }
     }
 
