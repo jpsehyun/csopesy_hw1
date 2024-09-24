@@ -13,7 +13,7 @@ private:
     //TODO add Current line of instruction / Total line of instruction in attribute
 
 public:
-    void setCommand(const std::string &terminal)
+    void setAttributes(const std::string &terminal)
     {
         name = terminal;
         // Sets the time to the current time
@@ -87,7 +87,7 @@ void handleScreenCommand(const std::string &command, std::vector<Terminal> &term
 		
 		// Creates a new instance of the Terminal class and stores it in the vector
         Terminal newTerminal;
-        newTerminal.setCommand(name);
+        newTerminal.setAttributes(name);
         terminals.push_back(newTerminal); 
         
         system("cls");
