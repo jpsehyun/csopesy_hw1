@@ -10,10 +10,13 @@ class Terminal
 private:
     std::string name;
     std::time_t timestamp;
-    //TODO add Current line of instruction / Total line of instruction in attribute
+    int currentLine;
+    int totalLines;
 
 public:
-    void setAttributes(const std::string &terminal)
+    Terminal() : currentLine(1), totalLines(10) {} // For now our default total line of instructions is 10
+
+    void setAttributes(const std::string& terminal)
     {
         name = terminal;
         // Sets the time to the current time
@@ -30,10 +33,61 @@ public:
         return timestamp;
     }
 
+    // Number of lines functions
+    int getCurrentLine() const
+    {
+        return currentLine;
+    }
+
+    int getTotalLines() const
+    {
+        return totalLines;
+    }
+
+    void incrementCurrentLine()
+    {
+        if (currentLine < totalLines)
+        {
+            currentLine++;
+        }
+    }
+
     void printAttributes() const
     {
         std::cout << "Terminal Name: " << name << std::endl;
-        std::cout << "Timestamp: " << std::ctime(&timestamp);
+
+        std::cout << "Instruction Line: " << currentLine << " / " << totalLines << std::endl;
+
+        // Formatted timestamp
+        char buffer[80];
+        struct tm timeInfo;
+        localtime_s(&timeInfo, &timestamp);  // Safe version of localtime
+        std::strftime(buffer, sizeof(buffer), "%m/%d/%Y, %I:%M:%S %p", &timeInfo);
+        std::cout << "Timestamp: " << buffer << std::endl;
+    }
+
+    // Added logic when not in the main console
+    void startProcessLoop()
+    {
+        std::string command;
+        while (true)
+        {
+            std::cout << ">>" << name << ": ";  // Show the process prompt
+            std::getline(std::cin, command);
+
+            if (command == "exit")
+            {
+                break;  // Exit the process and return to the main menu
+            }
+            else
+            {
+                std::cout << "Command not recognized. Only 'exit' is allowed in the screen.\n";
+                incrementCurrentLine();  // Increment current line of instruction, simply for tracking purposes right now
+
+                // After each invalid command, show the updated current line count
+                printAttributes();  // Display the updated terminal state
+            }
+        }
     }
 };
 
@@ -59,54 +113,90 @@ void printMessage()
     std::cout << "\nEnter a command: ";
 }
 
-void printAcceptMessage(const std::string &str)
+void printAcceptMessage(const std::string& str)
 {
     std::cout << str << " command recognized. Doing something...\n";
 }
 
 // Function to parse and handle the 'screen' command
-void handleScreenCommand(const std::string &command, std::vector<Terminal> &terminals, bool &isTerminalOpen)
+void handleScreenCommand(const std::string& command, std::vector<Terminal>& terminals, bool& isTerminalOpen)
 {
     std::istringstream iss(command);
     std::string screenCmd, option, name;
 
     iss >> screenCmd >> option >> name;
-	
-	// -s command creates a new instance of Terminal Class
+
+    // -s command creates a new instance of Terminal Class
     if (option == "-s" && !name.empty())
     {
         // Check for duplicate terminal names
-        for (const auto &terminal : terminals)
+        for (const auto& terminal : terminals)
         {
             if (terminal.getName() == name)
             {
                 std::cout << "Error: Terminal name '" << name << "' already exists!\n";
-                return; 
+                return;
             }
         }
-		
-		// Creates a new instance of the Terminal class and stores it in the vector
+
+        // Creates a new instance of the Terminal class and stores it in the vector
         Terminal newTerminal;
         newTerminal.setAttributes(name);
-        terminals.push_back(newTerminal); 
-        
+        terminals.push_back(newTerminal);
+
         system("cls");
         newTerminal.printAttributes();
         // Terminal is considered open if we successfully call the printAttributes() function
         isTerminalOpen = true;
+        newTerminal.startProcessLoop(); // enter the screen's command loop
+        
+        // Update the terminal object in the vector after the session ends
+        for (auto& terminal : terminals)
+        {
+            if (terminal.getName() == name)
+            {
+                terminal = newTerminal;  // Save the updated terminal state (with currentLine)
+                break;
+            }
+        }
+
+        isTerminalOpen = false; // reset after exiting process
+
+        // Print main menu static text after exiting screen terminal
+        system("cls");
+        printASCII();
+        printWelcomeMessage();
     }
-    
+
     // -r command reloads a existing instance of Terminal Class
     else if (option == "-r" && !name.empty())
-    {	
-    	// Goes through every indicies of the vector to check for the name
-        for (const auto &terminal : terminals)
+    {
+        // Goes through every indicies of the vector to check for the name
+        for (auto& terminal : terminals) // removed const
         {
             if (terminal.getName() == name)
             {
                 system("cls");
                 terminal.printAttributes();
                 isTerminalOpen = true;
+                terminal.startProcessLoop(); // enter the screen's command loop
+
+                // Update the terminal object in the vector after the session ends
+                for (auto& t : terminals)
+                {
+                    if (t.getName() == name)
+                    {
+                        t = terminal;  // Save the updated terminal state (with currentLine)
+                        break;
+                    }
+                }
+
+                isTerminalOpen = false; // reset after exiting process
+
+                // Print main menu static text after exiting screen terminal
+                system("cls");
+                printASCII();
+                printWelcomeMessage();
                 return;
             }
         }
@@ -131,8 +221,8 @@ int main()
     bool active = true;
     bool isTerminalOpen = false;
     std::string input;
-    
-	// Vector to hold Terminal instances
+
+    // Vector to hold Terminal instances
     std::vector<Terminal> terminals;
 
     while (active)
@@ -143,14 +233,14 @@ int main()
         iss >> command;
 
         if (command == "exit")
-        {	
-        	// If there is an open terminal, exit will go to main screen
-        	if (isTerminalOpen){
-	        	system("cls");
-	            printASCII();
-	            printWelcomeMessage();
-	            isTerminalOpen = false;
-			}
+        {
+            // If there is an open terminal, exit will go to main screen
+            if (isTerminalOpen) {
+                system("cls");
+                printASCII();
+                printWelcomeMessage();
+                isTerminalOpen = false;
+            }
             else active = false;
         }
         else if (command == "clear")
@@ -166,7 +256,7 @@ int main()
         }
         else if (command == "screen")
         {
-            handleScreenCommand(input, terminals, isTerminalOpen); 
+            handleScreenCommand(input, terminals, isTerminalOpen);
         }
         else if (command == "scheduler-test")
         {
