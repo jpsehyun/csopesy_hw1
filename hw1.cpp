@@ -181,7 +181,7 @@ public:
 
             if (command == "exit")
             {
-                break; // Exit the process and return to the main menu
+                break; 
             }
             else
             {
@@ -202,12 +202,12 @@ private:
     std::vector<std::thread> coreThreads; // Store threads for each core
     std::vector<std::shared_ptr<Process>> allProcesses; // Track all processes
     std::vector<bool> coreBusy; // Track which cores are busy
-    bool exit = false;
 
 public:
     FCFS_Scheduler() : coreBusy(NUM_CORES, false)
-    { // Initialize core status to be free
-        // Create and start a new thread for each core, executing coreThreadFunction with the core ID.
+    {
+        // Create and start a new thread for each core
+        // Each core gets their coreThreadFunctions
         for (int i = 0; i < NUM_CORES; i++)
         {
             coreThreads.emplace_back(&FCFS_Scheduler::coreThreadFunction, this, i);
@@ -227,25 +227,29 @@ public:
         {
             std::shared_ptr<Process> processPtr = nullptr;
 
-            // Get the next process from the queue
+            // if the Queue is not empty
+            // grab the process from the queue, and remove it from the queue
+            // assign the core Id and start time
             if (!processQueue.empty())
             {
-                processPtr = processQueue.front(); // Get the shared pointer to the process
-                processQueue.pop(); // Remove it from the queue
-                processPtr->setCoreId(coreId); // Assign the core ID to the process
-                processPtr->setStartTime(); // Set the start time when process is assigned to core
+                processPtr = processQueue.front();
+                processQueue.pop(); 
+                processPtr->setCoreId(coreId); 
+                processPtr->setStartTime(); 
             }
 
-            // Execute the process if it's assigned to this core
+            // if there is a process to be worked on
+            // mark the core as busy
+            // execute the print command for the process
+            // afterwards, core is no longer busy
             if (processPtr)
             {
-                coreBusy[coreId] = true; // Mark the core as busy
-                processPtr->executePrintCommands(); // Execute commands for this process
-                coreBusy[coreId] = false; // Mark the core as free
+                coreBusy[coreId] = true; 
+                processPtr->executePrintCommands();
+                coreBusy[coreId] = false;
             }
 
-            // Check for exit condition
-            if (exit && processQueue.empty())
+            if (processQueue.empty())
             {
                 break;
             }
@@ -264,7 +268,7 @@ public:
 
     void printCoreStatus()
     {
-        system("cls"); // Clear the console
+        system("cls");
 
         std::cout << "Current Status of Running Processes:\n";
         for (const auto& process : allProcesses)
@@ -272,7 +276,6 @@ public:
             // Only show processes that have been assigned to a core and are not finished
             if (process->getCoreId() >= 0 && !process->isFinished())
             {
-                // Get the start time and format it
                 std::string startTimeFormatted = formatTime(process->getStartTime());
 
                 std::cout << "Process " << process->getPid() << " (" << startTimeFormatted << ") (Core "
@@ -281,7 +284,6 @@ public:
             }
         }
 
-        // Print finished processes
         std::cout << "\nFinished Processes:\n";
         for (const auto& process : allProcesses)
         {
