@@ -91,6 +91,7 @@ public:
 
         while (finishedCommands < numPrintCommands)
         {
+            // Need to sleep or else the system process the process too fast
             std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
             std::time_t currentTime = std::time(nullptr); 
             commandTimestamps.push_back(currentTime);
