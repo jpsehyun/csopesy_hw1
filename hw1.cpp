@@ -199,6 +199,10 @@ public:
 class FCFS_Scheduler
 {
 private:
+    // shared_ptr is a smart pointer that automatically manages the memory of an object, 
+    // allocating it when created and deleting it when no longer referenced.
+    // AKA better version of doing Process* (I just learned this)
+
     std::queue<std::shared_ptr<Process>> processQueue; // Queue to schedule process
     std::vector<std::thread> coreThreads; // Store threads for each core
     std::vector<std::shared_ptr<Process>> allProcesses; // Track all processes
@@ -217,9 +221,17 @@ public:
 
     void addProcess(const Process& p)
     {
-        auto processPtr = std::make_shared<Process>(p); // Create shared pointer for the process
-        processQueue.push(processPtr); // Push it to the queue
-        allProcesses.push_back(processPtr); // Store all processes
+        // new Process object is created through the p reference we gave at the parameter
+        // make_shared creates a shared_ptr
+        auto processPtr = std::make_shared<Process>(p);
+
+        // Add the process to the queue (at the front)
+        // The core thread will pop the process inside this queue when they work on it
+        processQueue.push(processPtr); 
+
+        // Also add the process to the vector, (at the back).
+        // This is to keep track of all processes
+        allProcesses.push_back(processPtr);
     }
 
     void coreThreadFunction(int coreId)
@@ -239,8 +251,7 @@ public:
                 processPtr->setStartTime(); 
             }
 
-            // if there is a process to be worked on
-            // mark the core as busy
+            // if there is a process that is being worked on mark the core as busy
             // execute the print command for the process
             // afterwards, core is no longer busy
             if (processPtr)
