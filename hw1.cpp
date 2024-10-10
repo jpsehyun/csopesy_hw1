@@ -437,15 +437,15 @@ int main()
 
     // Initializes Processes upon launch (10 processes static for test case)
     for (int i = 1; i <= 10; ++i) {
-#if MODE == 0
+    #if MODE == 0
         // Each process has a random number of print commands
         numCommands = rand() % 100 + 50;
-#else MODE == 1
+    #else MODE == 1
         // Each process has exactly 100 commands
         numCommands = 100;
-#endif
-        scheduler.addProcess(Process(i, numCommands, -1)); // -1 indicates it is unassigned
-    }
+    #endif
+         scheduler.addProcess(Process(i, numCommands, -1)); // -1 indicates it is unassigned
+}
 
     bool active = true;
     bool isTerminalOpen = false;
