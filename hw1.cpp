@@ -200,7 +200,7 @@ class FCFS_Scheduler
 {
 private:
     // shared_ptr is a smart pointer that automatically manages the memory of an object, 
-    // allocating it when created and deleting it when no longer referenced.
+    // allocating it when created and deleting it when no longer referenced. As we do manually noramlly.
     // AKA better version of doing Process* (I just learned this)
 
     std::queue<std::shared_ptr<Process>> processQueue; // Queue to schedule process
