@@ -8,6 +8,7 @@
 #include <queue>    // queue
 #include <memory>   // smart pointers (shared_ptr)
 #include <fstream>  // file operations
+#include <mutex>
 
 /*##################################################################
 * Instructions: Type screen -ls repeatedly
@@ -87,13 +88,13 @@ public:
         // saves and creates the .txt file
         std::ostringstream filename;
         filename << "process_" << pid << ".txt";
-        std::ofstream logFile(filename.str(), std::ios_base::app); 
+        std::ofstream logFile(filename.str(), std::ios_base::app);
 
         while (finishedCommands < numPrintCommands)
         {
             // Need to sleep or else the system process the process too fast
-            std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
-            std::time_t currentTime = std::time(nullptr); 
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::time_t currentTime = std::time(nullptr);
             commandTimestamps.push_back(currentTime);
 
             char buffer[80];
@@ -101,7 +102,7 @@ public:
             localtime_s(&timeInfo, &currentTime);
             std::strftime(buffer, sizeof(buffer), "%m/%d/%Y, %I:%M:%S %p", &timeInfo);
 
-           
+
             logFile << buffer << " core:" << coreId << " Hello world from process " << pid << std::endl;
 
             finishedCommands++;
@@ -182,7 +183,7 @@ public:
 
             if (command == "exit")
             {
-                break; 
+                break;
             }
             else
             {
@@ -208,6 +209,8 @@ private:
     std::vector<std::shared_ptr<Process>> allProcesses; // Track all processes
     std::vector<bool> coreBusy; // Track which cores are busy
 
+    std::mutex queueMutex;
+
 public:
     FCFS_Scheduler() : coreBusy(NUM_CORES, false)
     {
@@ -224,10 +227,11 @@ public:
         // new Process object is created through the p reference we gave at the parameter
         // make_shared creates a shared_ptr
         auto processPtr = std::make_shared<Process>(p);
+        std::lock_guard<std::mutex> lock(queueMutex);
 
         // Add the process to the queue (at the front)
         // The core thread will pop the process inside this queue when they work on it
-        processQueue.push(processPtr); 
+        processQueue.push(processPtr);
 
         // Also add the process to the vector, (at the back).
         // This is to keep track of all processes
@@ -246,9 +250,9 @@ public:
             if (!processQueue.empty())
             {
                 processPtr = processQueue.front();
-                processQueue.pop(); 
-                processPtr->setCoreId(coreId); 
-                processPtr->setStartTime(); 
+                processQueue.pop();
+                processPtr->setCoreId(coreId);
+                processPtr->setStartTime();
             }
 
             // if there is a process that is being worked on mark the core as busy
@@ -256,13 +260,14 @@ public:
             // afterwards, core is no longer busy
             if (processPtr)
             {
-                coreBusy[coreId] = true; 
+                coreBusy[coreId] = true;
                 processPtr->executePrintCommands();
                 coreBusy[coreId] = false;
             }
 
             if (processQueue.empty())
             {
+                std::lock_guard<std::mutex> lock(queueMutex);
                 break;
             }
         }
@@ -449,14 +454,14 @@ int main()
     // Initializes Processes upon launch (10 processes static for test case)
     for (int i = 1; i <= 10; ++i) {
     #if MODE == 0
-        // Each process has a random number of print commands
-        numCommands = rand() % 100 + 50;
+         // Each process has a random number of print commands
+         numCommands = rand() % 100 + 50;
     #else MODE == 1
         // Each process has exactly 100 commands
         numCommands = 100;
     #endif
-         scheduler.addProcess(Process(i, numCommands, -1)); // -1 indicates it is unassigned
-}
+        scheduler.addProcess(Process(i, numCommands, -1)); // -1 indicates it is unassigned
+    }
 
     bool active = true;
     bool isTerminalOpen = false;
