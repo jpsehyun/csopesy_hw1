@@ -240,6 +240,10 @@ public:
 
     void coreThreadFunction(int coreId)
     {
+        // Really small delay in each thread, so they grab process in order they were created
+        // Without this, they all start at the same time, causing different order everytime
+        std::this_thread::sleep_for(std::chrono::milliseconds(coreId * 10));
+        
         while (true)
         {
             std::shared_ptr<Process> processPtr = nullptr;
