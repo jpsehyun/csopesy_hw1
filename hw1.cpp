@@ -251,12 +251,15 @@ public:
             // if the Queue is not empty
             // grab the process from the queue, and remove it from the queue
             // assign the core Id and start time
-            if (!processQueue.empty())
             {
-                processPtr = processQueue.front();
-                processQueue.pop();
-                processPtr->setCoreId(coreId);
-                processPtr->setStartTime();
+                std::lock_guard<std::mutex> lock(queueMutex);
+                if (!processQueue.empty())
+                {
+                    processPtr = processQueue.front();
+                    processQueue.pop();
+                    processPtr->setCoreId(coreId);
+                    processPtr->setStartTime();
+                }
             }
 
             // if there is a process that is being worked on mark the core as busy
