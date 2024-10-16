@@ -19,7 +19,7 @@
 
 ##################################################################*/
 
-#define NUM_CORES 1
+#define NUM_CORES 4
 
 // Bad practice (global var), lazy way to count the number of proceess
 std::atomic<int> globalProcessNumber = 1;
