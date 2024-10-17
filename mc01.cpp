@@ -478,6 +478,9 @@ int main()
 
     // Vector to hold Process instances
     std::vector<Process> processes;
+
+    // Thread which constantly accepts new process into the process vector
+    // (Since users is now able to add processes into the ready queue while the scheduler is running)
     std::thread processAdderThread(processSchedulerAutoAdder, std::ref(scheduler), std::ref(processes));
     processAdderThread.detach();
 
