@@ -166,13 +166,14 @@ private:
     std::vector<bool> coreBusy; // Track which cores are busy
 
     std::mutex queueMutex;
+    int numCores;
 
 public:
-    FCFS_Scheduler() : coreBusy(NUM_CORES, false)
+    FCFS_Scheduler(int numCore) : coreBusy(numCore, false), numCores(numCore)
     {
         // Create and start a new thread for each core
         // Each core gets their coreThreadFunctions
-        for (int i = 0; i < NUM_CORES; i++)
+        for (int i = 0; i < numCore; i++)
         {
             coreThreads.emplace_back(&FCFS_Scheduler::coreThreadFunction, this, i);
         }
@@ -444,6 +445,7 @@ int main()
     std::string input;
 
     // TODO: Declare a variable which are to be retrieved from config.txt
+    int numCore = NUM_CORES;
 
     while (true) {
         std::getline(std::cin, input);
@@ -472,7 +474,7 @@ int main()
 
     // Potential Design
     // if (mode == "fcfs")
-    FCFS_Scheduler scheduler;
+    FCFS_Scheduler scheduler(numCore);
     // else if (mode == "rr")
     // RR_Scheduler scheduler;
 
