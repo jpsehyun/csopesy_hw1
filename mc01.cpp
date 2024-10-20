@@ -19,12 +19,9 @@
 
 ##################################################################*/
 
-#define NUM_CORES 4
-
 // Bad practice (global var), lazy way to count the number of proceess
 std::atomic<int> globalProcessNumber = 1;
 
-// New class for process (terminal =/= process right?)
 class Process
 {
 private:
@@ -153,7 +150,19 @@ public:
     }
 };
 
-class FCFS_Scheduler
+class Scheduler {
+public:
+    virtual ~Scheduler() = default; // Virtual destructor for proper cleanup in derived classes
+    virtual void addProcess(const Process& p) = 0; // Pure virtual function
+    virtual void printCoreStatus() = 0; // Another pure virtual function
+    virtual std::string formatTime(std::time_t time) = 0; // Another pure virtual function
+};
+
+class RR_Schedule : public Scheduler {
+
+};
+
+class FCFS_Scheduler : public Scheduler
 {
 private:
     // shared_ptr is a smart pointer that automatically manages the memory of an object, 
@@ -179,7 +188,7 @@ public:
         }
     }
 
-    void addProcess(const Process& p)
+    void addProcess(const Process& p) override
     {
         // new Process object is created through the p reference we gave at the parameter
         // make_shared creates a shared_ptr
@@ -246,7 +255,7 @@ public:
         }
     }
 
-    std::string formatTime(std::time_t time)
+    std::string formatTime(std::time_t time) override
     {
         std::tm localTime; // Create a tm structure to hold the local time
         localtime_s(&localTime, &time); // Use localtime_s to get the local time
@@ -256,7 +265,7 @@ public:
         return std::string(buffer);
     }
 
-    void printCoreStatus()
+    void printCoreStatus() override
     {
         system("cls");
 
@@ -315,7 +324,7 @@ void printAcceptMessage(const std::string& str)
 }
 
 // Function to parse and handle the 'screen' command
-void handleScreenCommand(const std::string& command, std::vector<Process>& processes, bool& isTerminalOpen, FCFS_Scheduler& scheduler)
+void handleScreenCommand(const std::string& command, std::vector<Process>& processes, bool& isTerminalOpen, std::unique_ptr<Scheduler>& scheduler)
 {
     std::istringstream iss(command);
     std::string screenCmd, option, name;
@@ -408,7 +417,7 @@ void handleScreenCommand(const std::string& command, std::vector<Process>& proce
         isTerminalOpen = true;
         // Start a thread to print the core status
         std::thread lsThread([&scheduler]() {
-            scheduler.printCoreStatus();
+            scheduler->printCoreStatus();
             });
         lsThread.join(); // Wait for the thread to finish
 
@@ -419,7 +428,7 @@ void handleScreenCommand(const std::string& command, std::vector<Process>& proce
     }
 }
 
-void processSchedulerAutoAdder(FCFS_Scheduler& scheduler, std::vector<Process>& processes)
+void processSchedulerAutoAdder(std::unique_ptr<Scheduler>& scheduler, std::vector<Process>& processes)
 {
     std::size_t lastCheckedSize = 0; // Keep track of how many processes have been added
 
@@ -427,11 +436,50 @@ void processSchedulerAutoAdder(FCFS_Scheduler& scheduler, std::vector<Process>& 
         // Check for new processes in the vector
         if (processes.size() > lastCheckedSize) {
             for (std::size_t i = lastCheckedSize; i < processes.size(); i++) {
-                scheduler.addProcess(processes[i]);  // Add new processes to the scheduler
+                scheduler->addProcess(processes[i]);  // Add new processes to the scheduler
             }
             lastCheckedSize = processes.size();  // Update the last checked size
         }
     }
+}
+
+void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& batchFrequency, int& minCommandNum, int& maxCommandNum, int& delay) {
+    std::ifstream configFile("config.txt");
+
+    if (!configFile.is_open()) {
+        std::cerr << "Error: config.txt could not be opened!\n";
+        exit(1);
+    }
+
+    std::string line, param;
+    while (std::getline(configFile, line)) {
+        std::istringstream iss(line);
+        iss >> param;
+
+        if (param == "num-cpu") {
+            iss >> numCore;
+        }
+        else if (param == "scheduler") {
+            iss >> mode;
+        }
+        else if (param == "quantum-cycles") {
+            iss >> quantumCycle;
+        }
+        else if (param == "batch-process-freq") {
+            iss >> batchFrequency;
+        }
+        else if (param == "min-ins") {
+            iss >> minCommandNum;
+        }
+        else if (param == "max-ins") {
+            iss >> maxCommandNum;
+        }
+        else if (param == "delays-per-exec") {
+            iss >> delay;
+        }
+    }
+
+    configFile.close();
 }
 
 int main()
@@ -445,7 +493,13 @@ int main()
     std::string input;
 
     // TODO: Declare a variable which are to be retrieved from config.txt
-    int numCore = NUM_CORES;
+    int numCore;
+    std::string mode;
+    int quantumCycle;
+    int batchFrequency;
+    int minCommandNum;
+    int maxCommandNum;
+    int delay;
 
     while (true) {
         std::getline(std::cin, input);
@@ -455,12 +509,35 @@ int main()
 
         if (command == "initialize") {
             // TODO: read from config.txt and assign the values
+            readConfigFile(numCore, mode, quantumCycle, batchFrequency, minCommandNum, maxCommandNum, delay);
+
+            system("cls");
+
+            std::cout << "======================================\n";
+            std::cout << "        Configuration Loaded!         \n";
+            std::cout << "======================================\n";
+            std::cout << "  -> Number of CPUs        : " << numCore << "\n";
+            std::cout << "  -> Scheduler Mode        : " << mode << "\n";
+            std::cout << "  -> Quantum Cycles        : " << quantumCycle << "\n";
+            std::cout << "  -> Batch Process Freq    : " << batchFrequency << "\n";
+            std::cout << "  -> Min Instructions/Proc : " << minCommandNum << "\n";
+            std::cout << "  -> Max Instructions/Proc : " << maxCommandNum << "\n";
+            std::cout << "  -> Delay per Execution   : " << delay << "\n";
+            std::cout << "======================================\n";
+
+            std::cout << "\nLoading main menu in 3... ";
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::cout << "2... ";
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::cout << "1...\n";
+            std::this_thread::sleep_for(std::chrono::seconds(1));
 
             system("cls");
 
             printASCII();
             printWelcomeMessage();
             printMessage();
+
             break;
         }
         else if (command == "exit") {
@@ -472,19 +549,21 @@ int main()
         }
     }
 
-    // Potential Design
-    // if (mode == "fcfs")
-    FCFS_Scheduler scheduler(numCore);
-    // else if (mode == "rr")
-    // RR_Scheduler scheduler;
-
     // Vector to hold Process instances
     std::vector<Process> processes;
 
+    std::unique_ptr<Scheduler> scheduler;
+
+    if (mode == "fcfs") {
+        scheduler = std::make_unique<FCFS_Scheduler>(numCore);
+    }
+    else if (mode == "rr") {
+        // TODO initialize rr schduler
+    }
+        
     // Thread which constantly accepts new process into the process vector
     // (Since users is now able to add processes into the ready queue while the scheduler is running)
     std::thread processAdderThread(processSchedulerAutoAdder, std::ref(scheduler), std::ref(processes));
-    processAdderThread.detach();
 
     while (active)
     {
