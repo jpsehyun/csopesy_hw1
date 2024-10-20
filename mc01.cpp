@@ -156,7 +156,7 @@ public:
     virtual std::string formatTime(std::time_t time) = 0;
 };
 
-class RR_Schedule : public Scheduler {
+class RR_Scheduler : public Scheduler {
     // TODO make a rr schduler
 };
 
