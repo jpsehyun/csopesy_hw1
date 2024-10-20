@@ -12,10 +12,8 @@
 #include <atomic>
 
 /*##################################################################
-* Instructions: Type screen -s <name> to create a process
-* For now it applies FCFS automatically to the process created in a queue
-
-* You can change the number of cores at the bottom of this box
+* Instructions: Type initialize to start
+*               To change the parameter, please edit config.txt
 
 ##################################################################*/
 
