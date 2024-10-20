@@ -148,12 +148,12 @@ public:
     }
 };
 
-class Scheduler {
+class Scheduler { // Need allows different schedulers (like FCFS or RR) to be used interchangeably
 public:
-    virtual ~Scheduler() = default; // Virtual destructor for proper cleanup in derived classes
-    virtual void addProcess(const Process& p) = 0; // Pure virtual function
-    virtual void printCoreStatus() = 0; // Another pure virtual function
-    virtual std::string formatTime(std::time_t time) = 0; // Another pure virtual function
+    virtual ~Scheduler() = default; 
+    virtual void addProcess(const Process& p) = 0; 
+    virtual void printCoreStatus() = 0; 
+    virtual std::string formatTime(std::time_t time) = 0;
 };
 
 class RR_Schedule : public Scheduler {
