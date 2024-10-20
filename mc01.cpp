@@ -158,8 +158,8 @@ public:
     virtual std::string formatTime(std::time_t time) = 0; // Another pure virtual function
 };
 
-class RR_Schedule : public Scheduler {
-
+class RR_Scheduler : public Scheduler {
+    // TODO make scheduler
 };
 
 class FCFS_Scheduler : public Scheduler
