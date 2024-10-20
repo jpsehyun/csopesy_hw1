@@ -158,8 +158,8 @@ public:
     virtual std::string formatTime(std::time_t time) = 0; // Another pure virtual function
 };
 
-class RR_Scheduler : public Scheduler {
-    // TODO make scheduler
+class RR_Schedule : public Scheduler {
+
 };
 
 class FCFS_Scheduler : public Scheduler
@@ -324,7 +324,7 @@ void printAcceptMessage(const std::string& str)
 }
 
 // Function to parse and handle the 'screen' command
-void handleScreenCommand(const std::string& command, std::vector<Process>& processes, bool& isTerminalOpen, std::unique_ptr<Scheduler>& scheduler)
+void handleScreenCommand(const std::string& command, std::vector<Process>& processes, bool& isTerminalOpen, int min, int max, std::unique_ptr<Scheduler>& scheduler)
 {
     std::istringstream iss(command);
     std::string screenCmd, option, name;
@@ -344,15 +344,13 @@ void handleScreenCommand(const std::string& command, std::vector<Process>& proce
             }
         }
 
+        srand(static_cast<unsigned int>(time(0))); 
+        int commandSize = rand() % (max - min + 1) + min; 
+
         // Creates a new instance of the Terminal class and stores it in the vector
-        Process newProcess(name, globalProcessNumber, 100 ,-1);
+        Process newProcess(name, globalProcessNumber, commandSize ,-1);
         globalProcessNumber++;
-        /* //////////////////////////////////////////////////////*/
-
-        // TODO set the command line from config.txt (it's currently static 100)
-        // Need to pass the # of command line from config.txt to the parameter
-
-        /* //////////////////////////////////////////////////////*/
+        
         processes.push_back(newProcess);
 
         system("cls");
@@ -561,6 +559,7 @@ int main()
         // TODO initialize rr schduler
     }
         
+
     // Thread which constantly accepts new process into the process vector
     // (Since users is now able to add processes into the ready queue while the scheduler is running)
     std::thread processAdderThread(processSchedulerAutoAdder, std::ref(scheduler), std::ref(processes));
@@ -595,7 +594,7 @@ int main()
         }
         else if (command == "screen")
         {
-            handleScreenCommand(input, processes, isTerminalOpen, scheduler);
+            handleScreenCommand(input, processes, isTerminalOpen, minCommandNum, maxCommandNum, scheduler);
         }
         else if (command == "scheduler-test")
         {
