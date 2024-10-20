@@ -148,7 +148,7 @@ public:
     }
 };
 
-class Scheduler { // Need allows different schedulers (like FCFS or RR) to be used interchangeably
+class Scheduler { // Allows different schedulers (like FCFS or RR) to be used interchangeably
 public:
     virtual ~Scheduler() = default; 
     virtual void addProcess(const Process& p) = 0; 
