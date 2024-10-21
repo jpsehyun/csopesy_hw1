@@ -94,9 +94,9 @@ public:
     void executePrintCommands()
     {
         // saves and creates the .txt file
-        std::ostringstream filename;
+        /*std::ostringstream filename;
         filename << "process_" << pid << ".txt";
-        std::ofstream logFile(filename.str(), std::ios_base::app);
+        std::ofstream logFile(filename.str(), std::ios_base::app);*/
 
         while (numFinishedCommands < numCommands)
         {
@@ -111,12 +111,12 @@ public:
             std::strftime(buffer, sizeof(buffer), "%m/%d/%Y, %I:%M:%S %p", &timeInfo);
 
 
-            logFile << buffer << " core:" << coreId << " Hello world from process " << pname << std::endl;
+            //logFile << buffer << " core:" << coreId << " Hello world from process " << pname << std::endl;
 
             numFinishedCommands++;
         }
 
-        logFile.close();
+        //logFile.close();
     }
 
     void startProcessLoop()
@@ -236,7 +236,6 @@ public:
             }
 
             // if there is a process that is being worked on mark the core as busy
-            // execute the print command for the process
             // afterwards, core is no longer busy
             if (processPtr)
             {
@@ -478,6 +477,31 @@ void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& bat
     configFile.close();
 }
 
+// Write whats being printed on printCoreStatus into .txt
+void handleReportUtilCommand(std::unique_ptr<Scheduler>& scheduler)
+{
+    std::ofstream logFile("csopesy-log.txt");
+
+    if (logFile.is_open())
+    {
+        std::stringstream ss;
+
+        // Redirects the cout output into ss
+        std::streambuf* originalCoutBuffer = std::cout.rdbuf();
+        std::cout.rdbuf(ss.rdbuf());
+
+        scheduler->printCoreStatus();
+
+        // Redirects the cout output to its original place
+        std::cout.rdbuf(originalCoutBuffer);
+
+        // Write the content of ss into .txt
+        logFile << ss.str();
+
+        logFile.close();
+    }
+}
+
 int main()
 {
     printASCII();
@@ -606,8 +630,11 @@ int main()
         }
         else if (command == "report-util")
         {
-            printAcceptMessage(command);
-            // TODO add function
+            handleReportUtilCommand(scheduler);
+            system("cls");
+            printASCII();
+            printWelcomeMessage();
+            std::cout << "\n[Logs successfully saved to csopesy-log.txt!]\n";
         }
         else
         {
