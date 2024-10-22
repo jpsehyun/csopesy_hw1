@@ -93,7 +93,7 @@ public:
         return numFinishedCommands >= numCommands;
     }
 
-    void executePrintCommands()
+    void executePrintCommands(int delay)
     {
         // saves and creates the .txt file
         /*std::ostringstream filename;
@@ -103,7 +103,7 @@ public:
         while (numFinishedCommands < numCommands)
         {
             // Need to sleep or else the system process the process too fast
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
             std::time_t currentTime = std::time(nullptr);
             commandTimestamps.push_back(currentTime);
 
@@ -178,13 +178,13 @@ private:
     int numCores;
 
 public:
-    FCFS_Scheduler(int numCore) : coreBusy(numCore, false), numCores(numCore)
+    FCFS_Scheduler(int numCore, int delay) : coreBusy(numCore, false), numCores(numCore)
     {
         // Create and start a new thread for each core
         // Each core gets their coreThreadFunctions
         for (int i = 0; i < numCore; i++)
         {
-            coreThreads.emplace_back(&FCFS_Scheduler::coreThreadFunction, this, i);
+            coreThreads.emplace_back(&FCFS_Scheduler::coreThreadFunction, this, i, delay);
         }
     }
 
@@ -205,7 +205,7 @@ public:
 
     }
 
-    void coreThreadFunction(int coreId)
+    void coreThreadFunction(int coreId, int delay)
     {
         while (true)
         {
@@ -242,14 +242,14 @@ public:
             if (processPtr)
             {
                 coreBusy[coreId] = true;
-                processPtr->executePrintCommands();
+                processPtr->executePrintCommands(delay);
                 coreBusy[coreId] = false;
             }
 
             // standby for few timeframe if no job is assigned
             if (!processPtr)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                //std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         }
     }
@@ -607,7 +607,7 @@ int main()
     std::unique_ptr<Scheduler> scheduler;
 
     if (mode == "fcfs") {
-        scheduler = std::make_unique<FCFS_Scheduler>(numCore);
+        scheduler = std::make_unique<FCFS_Scheduler>(numCore, delay);
     }
     else if (mode == "rr") {
         // TODO initialize rr schduler
@@ -655,7 +655,7 @@ int main()
         }
         else if (command == "scheduler-test")
         {
-            printAcceptMessage(command);
+            //printAcceptMessage(command);
             if (!schedulerRunning) {
                 printAcceptMessage(command);
                 std::thread schedulerThread(schedulerTestFunction, batchFrequency, std::ref(processes), minCommandNum, maxCommandNum);
@@ -667,7 +667,7 @@ int main()
         }
         else if (command == "scheduler-stop")
         {
-            printAcceptMessage(command);
+            //printAcceptMessage(command);
             if (schedulerRunning) {
                 stopSchedulerTest();
             }
