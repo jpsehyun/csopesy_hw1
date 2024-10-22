@@ -17,6 +17,8 @@
 
 ##################################################################*/
 
+std::atomic<bool> schedulerRunning(false);  // Controls the scheduler-test state
+std::atomic<bool> stopRequested(false);     // Controls when to stop scheduler-test
 // Bad practice (global var), lazy way to count the number of proceess
 std::atomic<int> globalProcessNumber = 1;
 
@@ -502,6 +504,36 @@ void handleReportUtilCommand(std::unique_ptr<Scheduler>& scheduler)
     }
 }
 
+// Generate dummy processes in scheduler-test
+void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, int minCommandNum, int maxCommandNum) {
+    schedulerRunning = true;
+    stopRequested = false;
+
+    while (schedulerRunning && !stopRequested) {
+        // Sleep based on the batch frequency
+        std::this_thread::sleep_for(std::chrono::milliseconds(batchFrequency));
+
+        // Generate a new process with a random number of commands
+        int commandSize = rand() % (maxCommandNum - minCommandNum + 1) + minCommandNum;
+        std::string processName = "p" + std::to_string(globalProcessNumber++);
+
+        Process newProcess(processName, globalProcessNumber, commandSize, -1);
+        processes.push_back(newProcess);
+
+        std::cout << "Generated new process: " << processName << " with " << commandSize << " commands.\n";
+    }
+
+    if (stopRequested) {
+        std::cout << "Scheduler-test stopped.\n";
+    }
+}
+
+// Stop process generation (scheduler-stop)
+void stopSchedulerTest() {
+    stopRequested = true;
+    schedulerRunning = false;
+}
+
 int main()
 {
     printASCII();
@@ -602,7 +634,10 @@ int main()
                 printWelcomeMessage();
                 isTerminalOpen = false;
             }
-            else active = false;
+            else {
+                active = false;
+                stopSchedulerTest();  // Ensure scheduler-test stops if running
+            }
         }
         else if (command == "clear")
         {
@@ -621,12 +656,24 @@ int main()
         else if (command == "scheduler-test")
         {
             printAcceptMessage(command);
-            // TODO add function
+            if (!schedulerRunning) {
+                printAcceptMessage(command);
+                std::thread schedulerThread(schedulerTestFunction, batchFrequency, std::ref(processes), minCommandNum, maxCommandNum);
+                schedulerThread.detach();  // Run scheduler in a separate thread
+            }
+            else {
+                std::cout << "Scheduler-test is already running!\n";
+            }
         }
         else if (command == "scheduler-stop")
         {
             printAcceptMessage(command);
-            // TODO add function
+            if (schedulerRunning) {
+                stopSchedulerTest();
+            }
+            else {
+                std::cout << "Scheduler-test has already stopped running!\n";
+            }
         }
         else if (command == "report-util")
         {
@@ -647,6 +694,8 @@ int main()
         }
     }
 
+    // Ensure scheduler-test stops on exit
+    stopSchedulerTest();
     exit(0);
     return 0;
 }
