@@ -119,8 +119,8 @@ public:
 
             for (int i = 0; i < delay; i++)
             {
-                // Busy-wait loop for CPU delay
-                volatile int temp = 0; // Prevent compiler optimization
+                // Does nothing during the delay
+                volatile int temp = 0;
                 temp++;
             }
 
