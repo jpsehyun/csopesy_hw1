@@ -68,6 +68,10 @@ public:
         return coreId;
     }
 
+    void setFinished(int n) {
+        numFinishedCommands = n;
+    }
+
     void setCoreId(int core)
     {
         coreId = core;
@@ -93,16 +97,11 @@ public:
         return numFinishedCommands >= numCommands;
     }
 
-    void executePrintCommands(int delay)
+    void executePrintCommands(int delay, std::string name, std::vector<Process>& processes)
     {
-        // saves and creates the .txt file
-        /*std::ostringstream filename;
-        filename << "process_" << pid << ".txt";
-        std::ofstream logFile(filename.str(), std::ios_base::app);*/
-
         while (numFinishedCommands < numCommands)
         {
-            // Need to sleep or else the system process the process too fast
+            // TODO make this cpuCycle dependent
             std::this_thread::sleep_for(std::chrono::milliseconds(delay));
             std::time_t currentTime = std::time(nullptr);
             commandTimestamps.push_back(currentTime);
@@ -112,13 +111,17 @@ public:
             localtime_s(&timeInfo, &currentTime);
             std::strftime(buffer, sizeof(buffer), "%m/%d/%Y, %I:%M:%S %p", &timeInfo);
 
-
-            //logFile << buffer << " core:" << coreId << " Hello world from process " << pname << std::endl;
-
             numFinishedCommands++;
-        }
 
-        //logFile.close();
+            for (auto& p : processes) 
+            {
+                if (p.getName() == name) 
+                {
+                    p.setFinished(numFinishedCommands);
+                    break;
+                }
+            }
+        }
     }
 
     void startProcessLoop()
@@ -126,7 +129,7 @@ public:
         std::string command;
         while (true)
         {
-            std::cout << ">>" << pname << ": "; // Show the process prompt
+            std::cout << ">>" << pname << ": ";
             std::getline(std::cin, command);
 
             if (command == "exit")
@@ -145,10 +148,20 @@ public:
 
     void printAttributes() const
     {
-        std::cout << "Terminal Name: " << pname << std::endl;
-        std::cout << "Instruction Line: " << numFinishedCommands << " / " << numCommands << std::endl;
+        std::cout << "Process: " << pname << std::endl;
+        std::cout << "ID: " << pid << std::endl;
+        if (numFinishedCommands < numCommands) {
+            std::cout << "\nCurrent Instruction Line: " << numFinishedCommands << std::endl;
+            std::cout << "Lines of Code: " << numCommands << std::endl;
+        }
+        else if (numFinishedCommands >= numCommands)
+            std::cout << "\nFinished!" << std::endl;
+        std::cout << std::endl;
     }
 };
+
+// Vector of processes moved to global var
+std::vector<Process> processes;
 
 class Scheduler { // Allows different schedulers (like FCFS or RR) to be used interchangeably
 public:
@@ -242,7 +255,7 @@ public:
             if (processPtr)
             {
                 coreBusy[coreId] = true;
-                processPtr->executePrintCommands(delay);
+                processPtr->executePrintCommands(delay, processPtr->getName(), processes);
                 coreBusy[coreId] = false;
             }
 
@@ -602,7 +615,7 @@ int main()
     }
 
     // Vector to hold Process instances
-    std::vector<Process> processes;
+    //std::vector<Process> processes;
 
     std::unique_ptr<Scheduler> scheduler;
 
