@@ -99,6 +99,19 @@ public:
 
     void executePrintCommands(int delay, std::string name, std::vector<Process>& processes)
     {
+        int iterationCount = 0;
+        const int updateThreshold = 5;
+
+        int tempTotal = 0;
+
+        for (auto& p : processes)
+        {
+            if (p.getName() == name)
+            {
+                tempTotal = p.getTotalCommands();
+            }
+        }
+
         while (numFinishedCommands < numCommands)
         {
             // TODO make this cpuCycle dependent
@@ -113,13 +126,31 @@ public:
 
             numFinishedCommands++;
 
-            for (auto& p : processes) 
-            {
-                if (p.getName() == name) 
+            iterationCount++;
+
+            if (numFinishedCommands >= tempTotal) {
+                for (auto& p : processes)
                 {
-                    p.setFinished(numFinishedCommands);
-                    break;
+                    if (p.getName() == name)
+                    {
+                        p.setFinished(numFinishedCommands);
+                        break;
+                    }
                 }
+            }
+
+            // Only update after 5 iterations or else the program crashes/abort 
+            else if (iterationCount >= updateThreshold && numFinishedCommands < tempTotal)
+            {
+                for (auto& p : processes)
+                {
+                    if (p.getName() == name)
+                    {
+                        p.setFinished(numFinishedCommands); 
+                        break;
+                    }
+                }
+                iterationCount = 0; 
             }
         }
     }
