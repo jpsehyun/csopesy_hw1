@@ -115,7 +115,15 @@ public:
         while (numFinishedCommands < numCommands)
         {
             // TODO make this cpuCycle dependent
-            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+            // std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+
+            for (int i = 0; i < delay; i++)
+            {
+                // Busy-wait loop for CPU delay
+                volatile int temp = 0; // Prevent compiler optimization
+                temp++;
+            }
+
             std::time_t currentTime = std::time(nullptr);
             commandTimestamps.push_back(currentTime);
 
