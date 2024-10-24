@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Debug"
   ],
-  "SelectedNode": "\\mc01.cpp",
+  "SelectedNode": "\\Debug\\test1.exe",
   "PreviewInSolutionExplorer": false
 }

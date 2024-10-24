@@ -561,6 +561,11 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
     schedulerRunning = true;
     stopRequested = false;
 
+    // Reinforce minimum batch frequency
+    if (batchFrequency < 1) {
+        batchFrequency = 1;
+    }
+
     while (schedulerRunning && !stopRequested) {
         // Sleep based on the batch frequency
         std::this_thread::sleep_for(std::chrono::milliseconds(batchFrequency));
@@ -572,11 +577,18 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
         Process newProcess(processName, globalProcessNumber, commandSize, -1);
         processes.push_back(newProcess);
 
-        std::cout << "Generated new process: " << processName << " with " << commandSize << " commands.\n";
+        // Do not print anything while the scheduler is running
     }
 
     if (stopRequested) {
-        std::cout << "Scheduler-test stopped.\n";
+        // Provide a summary of all processes generated when `scheduler-stop` is called
+        std::cout << "\nScheduler-test stopped. Summary of all generated processes:\n";
+        for (const auto& process : processes) {
+            std::cout << process.getName() << " with " << process.getTotalCommands() << " commands.\n";
+        }
+
+        // After the summary is printed, ensure the prompt is placed after the summary
+        std::cout << "\nEnter a command: " << std::flush;
     }
 }
 
