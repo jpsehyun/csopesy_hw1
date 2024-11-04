@@ -163,6 +163,72 @@ public:
         }
     }
 
+    void executePrintCommandsRR(int delay, std::string name, std::vector<Process>& processes)
+    {
+        static int iterationCount = 0;
+        const int updateThreshold = 5;
+
+        int tempTotal = 0;
+
+        for (auto& p : processes)
+        {
+            if (p.getName() == name)
+            {
+                tempTotal = p.getTotalCommands();
+            }
+        }
+
+        if (numFinishedCommands < numCommands)
+        {
+            // TODO make this cpuCycle dependent
+            // std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+
+            for (int i = 0; i < delay; i++)
+            {
+                // Does nothing during the delay
+                volatile int temp = 0;
+                temp++;
+            }
+
+            std::time_t currentTime = std::time(nullptr);
+            commandTimestamps.push_back(currentTime);
+
+            char buffer[80];
+            struct tm timeInfo;
+            localtime_s(&timeInfo, &currentTime);
+            std::strftime(buffer, sizeof(buffer), "%m/%d/%Y, %I:%M:%S %p", &timeInfo);
+
+            numFinishedCommands++;
+
+            iterationCount++;
+
+            if (numFinishedCommands >= tempTotal) {
+                for (auto& p : processes)
+                {
+                    if (p.getName() == name)
+                    {
+                        p.setFinished(numFinishedCommands);
+                        break;
+                    }
+                }
+            }
+
+            // Only update after 5 iterations or else the program crashes/abort 
+            else if (iterationCount >= updateThreshold)
+            {
+                for (auto& p : processes)
+                {
+                    if (p.getName() == name)
+                    {
+                        p.setFinished(numFinishedCommands);
+                        break;
+                    }
+                }
+                iterationCount = 0;
+            }
+        }
+    }
+
     void startProcessLoop()
     {
         std::string command;
@@ -211,7 +277,136 @@ public:
 };
 
 class RR_Scheduler : public Scheduler {
-    // TODO make a rr schduler
+private:
+    std::queue<std::shared_ptr<Process>> processQueue; // Queue to hold processes
+    std::vector<std::thread> coreThreads;              // Store threads for each core
+    std::vector<std::shared_ptr<Process>> allProcesses; // Track all processes
+    std::vector<bool> coreBusy;                         // Track core availability
+    int quantumCycle;                                   // Time slice for each process
+    std::mutex queueMutex;
+    int numCores;
+
+public:
+    RR_Scheduler(int numCore, int quantum, int delay)
+        : coreBusy(numCore, false), quantumCycle(quantum), numCores(numCore)
+    {
+        // Create and start a new thread for each core
+        for (int i = 0; i < numCore; i++) {
+            coreThreads.emplace_back(&RR_Scheduler::coreThreadFunction, this, i, delay);
+        }
+    }
+
+    void addProcess(const Process& p) override {
+        auto processPtr = std::make_shared<Process>(p);
+        std::lock_guard<std::mutex> lock(queueMutex);
+        processQueue.push(processPtr);
+        allProcesses.push_back(processPtr);
+    }
+
+    void coreThreadFunction(int coreId, int delay) {
+        while (true) {
+            std::shared_ptr<Process> processPtr = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(queueMutex);
+
+                // Smart way to check if a certain coreId is the lowest available core
+                bool lowestAvailableCore = true;
+                for (int i = 0; i < coreId; i++)
+                {
+                    if (!coreBusy[i])
+                    {
+                        lowestAvailableCore = false;
+                        break;
+                    }
+                }
+
+                // Fetch process only if this core is not busy and there is a process available
+                if (lowestAvailableCore && !coreBusy[coreId] && !processQueue.empty()) {
+                    processPtr = processQueue.front();
+                    processQueue.pop();  // Pop it from the queue
+
+                    // Set core ID and start time
+                    processPtr->setCoreId(coreId);
+                    if (processPtr->getStartTime() == 0) {  
+                        processPtr->setStartTime();
+                    }
+                    coreBusy[coreId] = true; // Mark the core as busy
+                }
+            }
+
+            // If there's no process to execute, set it to not busy
+            if (!processPtr) {
+                coreBusy[coreId] = false;  // Mark the core as idle
+                continue;  
+            }
+
+            // Execute commands until quantum cycle is exhausted or process is finished
+            int cyclesExecuted = 0;  // Count the number of cycles executed
+            while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
+                processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);  // Execute one command
+                cyclesExecuted++;
+            }
+
+            // If the process is not finished after its quantum, requeue it
+            if (!processPtr->isFinished()) {
+                std::lock_guard<std::mutex> lock(queueMutex);
+                // Requeue if there are fewer processes than cores
+                processQueue.push(processPtr);  // Requeue to the back of the queue
+            }
+            else {
+                std::cout << "Core " << coreId << " finished Process: " << processPtr->getName() << std::endl; // Log finished process
+            }
+
+            coreBusy[coreId] = false;  // Mark the core as idle after processing
+        }
+    }
+
+
+    std::string formatTime(std::time_t time) override {
+        std::tm localTime;
+        localtime_s(&localTime, &time);
+        char buffer[100];
+        std::strftime(buffer, sizeof(buffer), "%m/%d/%Y %I:%M:%S %p", &localTime);
+        return std::string(buffer);
+    }
+
+    void printCoreStatus() override {
+        system("cls");
+
+        std::cout << "Current Status of Running Processes (RR Scheduler):\n";
+
+        std::vector<std::shared_ptr<Process>> activeProcesses(numCores, nullptr);
+
+        for (const auto& process : allProcesses) {
+            if (!process->isFinished() && process->getCoreId() >= 0) {
+                activeProcesses[process->getCoreId()] = process; // Assign the process to its core
+            }
+        }
+
+        for (int coreId = 0; coreId < numCores; coreId++) {
+            if (activeProcesses[coreId]) {
+                std::string startTimeFormatted = formatTime(activeProcesses[coreId]->getStartTime());
+                std::cout << "Core " << coreId << " is processing: " << activeProcesses[coreId]->getName()
+                    << " (" << startTimeFormatted << "): "
+                    << activeProcesses[coreId]->getFinishedCommands() << "/"
+                    << activeProcesses[coreId]->getTotalCommands() << " commands executed.\n";
+            }
+            else {
+                std::cout << "Core " << coreId << " is idle.\n";
+            }
+        }
+
+        // Finished processes
+        std::cout << "\nFinished Processes:\n";
+        for (const auto& process : allProcesses) {
+            if (process->isFinished()) {
+                std::string startTimeFormatted = formatTime(process->getStartTime());
+                std::cout << "Process " << process->getName() << " (" << startTimeFormatted << "): "
+                    << process->getFinishedCommands() << "/"
+                    << process->getTotalCommands() << " commands executed.\n";
+            }
+        }
+    }
 };
 
 class FCFS_Scheduler : public Scheduler
@@ -679,7 +874,7 @@ int main()
         scheduler = std::make_unique<FCFS_Scheduler>(numCore, delay);
     }
     else if (mode == "rr") {
-        // TODO initialize rr schduler
+        scheduler = std::make_unique<RR_Scheduler>(numCore, quantumCycle, delay);
     }
         
 
