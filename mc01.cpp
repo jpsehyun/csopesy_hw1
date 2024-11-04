@@ -115,7 +115,6 @@ public:
         while (numFinishedCommands < numCommands)
         {
             // TODO make this cpuCycle dependent
-            // std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 
             for (int i = 0; i < delay; i++)
             {
@@ -140,7 +139,7 @@ public:
                 for (auto& p : processes)
                 {
                     if (p.getName() == name)
-                    {
+                    { 
                         p.setFinished(numFinishedCommands);
                         break;
                     }
@@ -148,7 +147,7 @@ public:
             }
 
             // Only update after 5 iterations or else the program crashes/abort 
-            else if (iterationCount >= updateThreshold && numFinishedCommands < tempTotal)
+            else if (numFinishedCommands < tempTotal)
             {
                 for (auto& p : processes)
                 {
@@ -342,6 +341,7 @@ public:
             // Execute commands until quantum cycle is exhausted or process is finished
             int cyclesExecuted = 0;  // Count the number of cycles executed
             while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
+                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
                 processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);  // Execute one command
                 cyclesExecuted++;
             }
@@ -430,6 +430,7 @@ public:
         // Each core gets their coreThreadFunctions
         for (int i = 0; i < numCore; i++)
         {
+            std::this_thread::sleep_for(std::chrono::nanoseconds(1));
             coreThreads.emplace_back(&FCFS_Scheduler::coreThreadFunction, this, i, delay);
         }
     }
@@ -762,7 +763,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
 
     while (schedulerRunning && !stopRequested) {
         // Sleep based on the batch frequency
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(35));
         for (int i = 0; i < batchFrequency; i++) {
             volatile int x = 0;
             x++;
