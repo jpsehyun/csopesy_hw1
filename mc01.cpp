@@ -182,7 +182,7 @@ public:
         {
             // TODO make this cpuCycle dependent
             // std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-
+            
             for (int i = 0; i < delay; i++)
             {
                 // Does nothing during the delay
@@ -309,7 +309,6 @@ public:
             {
                 std::lock_guard<std::mutex> lock(queueMutex);
 
-                // Smart way to check if a certain coreId is the lowest available core
                 bool lowestAvailableCore = true;
                 for (int i = 0; i < coreId; i++)
                 {
@@ -354,7 +353,7 @@ public:
                 processQueue.push(processPtr);  // Requeue to the back of the queue
             }
             else {
-                std::cout << "Core " << coreId << " finished Process: " << processPtr->getName() << std::endl; // Log finished process
+               // std::cout << "Core " << coreId << " finished Process: " << processPtr->getName() << std::endl; // Log finished process
             }
 
             coreBusy[coreId] = false;  // Mark the core as idle after processing
@@ -755,7 +754,7 @@ void handleReportUtilCommand(std::unique_ptr<Scheduler>& scheduler)
 void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, int minCommandNum, int maxCommandNum) {
     schedulerRunning = true;
     stopRequested = false;
-
+  
     // Reinforce minimum batch frequency
     if (batchFrequency < 1) {
         batchFrequency = 1;
@@ -763,8 +762,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
 
     while (schedulerRunning && !stopRequested) {
         // Sleep based on the batch frequency
-        //std::this_thread::sleep_for(std::chrono::milliseconds(batchFrequency));
-
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         for (int i = 0; i < batchFrequency; i++) {
             volatile int x = 0;
             x++;
