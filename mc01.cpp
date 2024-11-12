@@ -10,6 +10,7 @@
 #include <fstream>  // file operations
 #include <mutex>
 #include <atomic>
+#include <set>
 
 /*##################################################################
 * Instructions: Type initialize to start
@@ -21,6 +22,133 @@ std::atomic<bool> schedulerRunning(false);  // Controls the scheduler-test state
 std::atomic<bool> stopRequested(false);     // Controls when to stop scheduler-test
 // Bad practice (global var), lazy way to count the number of proceess
 std::atomic<int> globalProcessNumber = 1;
+
+
+int minMemory = 0; // This would be minMemory += memoryFrame while its < memoryPerPrcoess (what is the minimum number of memory needed for each process)
+int maxMemory;
+int memoryFrame;
+int memoryPerProcess;
+std::vector<int> memoryBlock;
+
+std::set<int> pidSet; // I need to know the order of pID that is being worked on to print
+
+int tempQuantum = 0;
+
+bool allocateMemory(int minMemory, int pid, std::vector<int>& memoryBlock) {
+    for (int block : memoryBlock) {
+        if (block == pid) {
+            return false;
+        }
+    }
+
+    int maxMemory = memoryBlock.size();
+
+    for (int i = 0; i <= maxMemory - minMemory;) {
+        if (memoryBlock[i] != 0) {
+            while (i < maxMemory && memoryBlock[i] != 0) {
+                i++;
+            }
+            continue;
+        }
+
+        bool canAllocate = true;
+        for (int j = 0; j < minMemory; j++) {
+            if (memoryBlock[i + j] != 0) {
+                canAllocate = false;
+                i += j + 1;
+                break;
+            }
+        }
+
+        if (canAllocate) {
+            for (int j = 0; j < minMemory; ++j) {
+                memoryBlock[i + j] = pid;
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void deallocateMemory(int pid, std::vector<int>& memoryBlock) {
+    for (int& block : memoryBlock) {
+        if (block == pid) {
+            block = 0;
+        }
+    }
+}
+
+int calculateExternalFragmentation(std::vector<int>& memoryBlock) {
+    int freeMemory = 0;
+
+    for (int& block : memoryBlock) {
+        if (block == 0) {
+            freeMemory++;
+        }
+    }
+
+    return freeMemory;
+}
+
+int calculateNumProcessInMemory(const std::vector<int>& memoryBlock) {
+    std::set<int> uniqueProcesses;
+
+    for (int block : memoryBlock) {
+        if (block != 0) {
+            uniqueProcesses.insert(block);
+        }
+    }
+
+    return uniqueProcesses.size();
+}
+
+bool isProcessInMemory(const std::vector<int>& memoryBlock, int pid) {
+    for (int block : memoryBlock) {
+        if (block == pid) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Function that returns a set of number which is the starting and end point of each pid in memory block
+std::vector<int> findNonZeroRanges(const std::vector<int>& memoryBlock) {
+    std::vector<int> ranges;
+    int n = memoryBlock.size();
+    bool inBlock = false;
+    int start = -1;
+    int prevValue = -1;
+
+    for (int i = 0; i < n; i++) {
+        if (memoryBlock[i] != 0) {
+
+            if (!inBlock || memoryBlock[i] != prevValue) {
+                if (inBlock) {
+                    ranges.push_back(start);
+                    ranges.push_back(i);
+                }
+                start = i + 1;
+                inBlock = true;
+            }
+            prevValue = memoryBlock[i];
+        }
+        else {
+            if (inBlock) {
+                ranges.push_back(start);
+                ranges.push_back(i);
+                inBlock = false;
+            }
+        }
+    }
+
+    if (inBlock) {
+        ranges.push_back(start);
+        ranges.push_back(n);
+    }
+
+    return ranges;
+}
 
 class Process
 {
@@ -40,7 +168,7 @@ public:
         pname = std::to_string(id);
     }
 
-    Process(const std::string& procName, int id,  int commands, int core)
+    Process(const std::string& procName, int id, int commands, int core)
         : pname(procName), pid(id), numCommands(commands), numFinishedCommands(0), coreId(core), startTime(0) {}
 
     std::string getName() const
@@ -139,7 +267,7 @@ public:
                 for (auto& p : processes)
                 {
                     if (p.getName() == name)
-                    { 
+                    {
                         p.setFinished(numFinishedCommands);
                         break;
                     }
@@ -153,11 +281,11 @@ public:
                 {
                     if (p.getName() == name)
                     {
-                        p.setFinished(numFinishedCommands); 
+                        p.setFinished(numFinishedCommands);
                         break;
                     }
                 }
-                iterationCount = 0; 
+                iterationCount = 0;
             }
         }
     }
@@ -181,7 +309,7 @@ public:
         {
             // TODO make this cpuCycle dependent
             // std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-            
+
             for (int i = 0; i < delay; i++)
             {
                 // Does nothing during the delay
@@ -264,84 +392,16 @@ public:
     }
 };
 
-class MemoryBlock {
-public:
-    int maxOverallMem = 16384;     // Total memory in KB
-    int memPerFrame = 16;          // Frame size in KB
-    int memPerProc = 4096;         // Memory needed per process
-    int usedMemory = 0;            // Track used memory in KB
-    std::vector<bool> memoryFrames; // Memory frames allocation status
-
-    MemoryBlock() : memoryFrames(maxOverallMem / memPerFrame, false) {}
-
-    bool allocateMemory(int processId) {
-        int framesNeeded = memPerProc / memPerFrame;
-        int availableFrames = 0;
-
-        // Find a contiguous block of frames for allocation
-        for (int i = 0; i <= memoryFrames.size() - framesNeeded; ++i) {
-            bool canAllocate = true;
-            for (int j = 0; j < framesNeeded; ++j) {
-                if (memoryFrames[i + j]) {
-                    canAllocate = false;
-                    break;
-                }
-            }
-
-            if (canAllocate) {
-                for (int j = 0; j < framesNeeded; ++j) {
-                    memoryFrames[i + j] = true;
-                }
-                usedMemory += memPerProc;
-                return true;
-            }
-        }
-
-        // No sufficient contiguous block found, memory full for this process
-        return false;
-    }
-
-    void deallocateMemory(int processId) {
-        int framesFreed = memPerProc / memPerFrame;
-
-        // Free up frames for the completed process
-        for (int i = 0; i < memoryFrames.size(); ++i) {
-            if (memoryFrames[i]) {
-                for (int j = 0; j < framesFreed; ++j) {
-                    memoryFrames[i + j] = false;
-                }
-                usedMemory -= memPerProc;
-                return;
-            }
-        }
-    }
-
-    int calculateExternalFragmentation() {
-        int unusedFrames = 0;
-        for (bool frame : memoryFrames) {
-            if (!frame) unusedFrames++;
-        }
-        return unusedFrames * memPerFrame;
-    }
-
-    void printMemoryStatus() {
-        std::cout << "Total memory: " << maxOverallMem << " KB\n";
-        std::cout << "Used memory: " << usedMemory << " KB\n";
-        std::cout << "Free memory: " << maxOverallMem - usedMemory << " KB\n";
-        std::cout << "External Fragmentation: " << calculateExternalFragmentation() << " KB\n";
-    }
-};
-
-
 // Vector of processes moved to global var
 std::vector<Process> processes;
 
 class Scheduler { // Allows different schedulers (like FCFS or RR) to be used interchangeably
 public:
-    virtual ~Scheduler() = default; 
-    virtual void addProcess(const Process& p) = 0; 
-    virtual void printCoreStatus() = 0; 
+    virtual ~Scheduler() = default;
+    virtual void addProcess(const Process& p) = 0;
+    virtual void printCoreStatus() = 0;
     virtual std::string formatTime(std::time_t time) = 0;
+    bool memoryFull = false;
 };
 
 class RR_Scheduler : public Scheduler {
@@ -371,68 +431,6 @@ public:
         allProcesses.push_back(processPtr);
     }
 
-    // MemoryBlock memory;
-
-    /*
-    void coreThreadFunction(int coreId, int delay) {
-        while (true) {
-            std::shared_ptr<Process> processPtr = nullptr;
-
-            {
-                std::lock_guard<std::mutex> lock(queueMutex);
-
-                // Fetch process and attempt memory allocation
-                if (!coreBusy[coreId] && !processQueue.empty()) {
-                    processPtr = processQueue.front();
-
-                    if (memory.allocateMemory(processPtr->getPid())) {
-                        processQueue.pop();  // Remove from queue if memory allocated
-                        processPtr->setCoreId(coreId);
-                        coreBusy[coreId] = true;
-                        if (processPtr->getStartTime() == 0) {
-                            processPtr->setStartTime();
-                        }
-                    } else {
-                        // Memory full, move process to end of queue
-                        processQueue.pop();
-                        processQueue.push(processPtr);
-                    }
-                }
-            }
-
-            if (!processPtr) {
-                coreBusy[coreId] = false;
-                continue;
-            }
-
-            // Execute commands until process finishes or quantum ends
-            int cyclesExecuted = 0;
-            while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
-                processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);
-                cyclesExecuted++;
-            }
-
-            // Requeue or deallocate memory after completion
-            if (!processPtr->isFinished()) {
-                std::lock_guard<std::mutex> lock(queueMutex);
-                processQueue.push(processPtr);
-            } else {
-                memory.deallocateMemory(processPtr->getPid());
-                coreBusy[coreId] = false;
-            }
-        }
-    }
-
-    void printCoreStatus() override {
-        system("cls");
-        std::cout << "Current Memory Status:\n";
-        memory.printMemoryStatus();
-        // Existing code to display core and process status
-    }
-
-
-    */
-
     void coreThreadFunction(int coreId, int delay) {
         while (true) {
             std::shared_ptr<Process> processPtr = nullptr;
@@ -454,27 +452,79 @@ public:
                     processPtr = processQueue.front();
                     processQueue.pop();  // Pop it from the queue
 
-                    // Set core ID and start time
-                    processPtr->setCoreId(coreId);
-                    if (processPtr->getStartTime() == 0) {  
-                        processPtr->setStartTime();
+                    // Try to allocate memory for the process
+                    if (allocateMemory(minMemory, processPtr->getPid(), memoryBlock) || isProcessInMemory(memoryBlock, processPtr->getPid())) {
+                        // Set core ID and start times
+                        processPtr->setCoreId(coreId);
+                        if (processPtr->getStartTime() == 0) {
+                            processPtr->setStartTime();
+                        }
+                        coreBusy[coreId] = true;  // Mark the core as busy
+                        pidSet.insert(processPtr->getPid());
                     }
-                    coreBusy[coreId] = true; // Mark the core as busy
+                    else {
+                        // If memory allocation fails, requeue the process and skip this core's cycle
+                        processQueue.push(processPtr);  // Requeue the process
+                        continue;  // Skip the rest of the loop iteration
+                    }
                 }
             }
 
             // If there's no process to execute, set it to not busy
             if (!processPtr) {
                 coreBusy[coreId] = false;  // Mark the core as idle
-                continue;  
+                continue;
             }
 
             // Execute commands until quantum cycle is exhausted or process is finished
             int cyclesExecuted = 0;  // Count the number of cycles executed
-            while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
-                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
-                processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);  // Execute one command
-                cyclesExecuted++;
+            try {
+                while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
+                    //std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+                    processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);  // Execute one command
+                    cyclesExecuted++;
+                }
+            }
+            catch (const std::exception&) {}
+
+            int totalFreeSpace = calculateExternalFragmentation(memoryBlock);
+            int numProcessesInMemory = calculateNumProcessInMemory(memoryBlock);
+
+            // Get current time for timestamp
+            std::time_t timestamp = std::time(nullptr);
+            std::tm localTime;
+            localtime_s(&localTime, &timestamp);
+            char timeBuffer[100];
+            std::strftime(timeBuffer, sizeof(timeBuffer), "%m/%d/%Y %I:%M:%S %p", &localTime);
+
+            std::string fileName = "memory_stamp_" + std::to_string(tempQuantum += quantumCycle) + ".txt";
+
+            std::vector<int> ranges = findNonZeroRanges(memoryBlock);
+
+            std::ofstream logFile(fileName, std::ios::out);
+            if (logFile.is_open()) {
+                logFile << "Timestamp: " << timeBuffer << "\n"
+                    << "Processes in memory: " << numProcessesInMemory << "\n"
+                    << "Total external fragmentation in KB: " << totalFreeSpace << " units\n"
+                    << "--------------------------------------------\n";
+
+                logFile << "--------end-------- = " << maxMemory << "\n";
+                auto setPtr = pidSet.rbegin();
+
+                for (size_t i = ranges.size(); i > 0; i -= 2) {
+                    logFile << ranges[i - 1] << "\n";
+
+                    if (setPtr != pidSet.rend()) {
+                        logFile << "P" << *setPtr << "\n";
+                        setPtr++;
+                    }
+
+                    logFile << ranges[i - 2] - 1 << "\n\n";
+                }
+                logFile << "--------start------ = " << 0 << "\n";
+
+                // Close the file
+                logFile.close();
             }
 
             // If the process is not finished after its quantum, requeue it
@@ -484,7 +534,8 @@ public:
                 processQueue.push(processPtr);  // Requeue to the back of the queue
             }
             else {
-               // std::cout << "Core " << coreId << " finished Process: " << processPtr->getName() << std::endl; // Log finished process
+                deallocateMemory(processPtr->getPid(), memoryBlock);
+                pidSet.erase(processPtr->getPid());
             }
 
             coreBusy[coreId] = false;  // Mark the core as idle after processing
@@ -721,13 +772,13 @@ void handleScreenCommand(const std::string& command, std::vector<Process>& proce
             }
         }
 
-        srand(static_cast<unsigned int>(time(0))); 
-        int commandSize = rand() % (max - min + 1) + min; 
+        srand(static_cast<unsigned int>(time(0)));
+        int commandSize = rand() % (max - min + 1) + min;
 
         // Creates a new instance of the Terminal class and stores it in the vector
-        Process newProcess(name, globalProcessNumber, commandSize ,-1);
+        Process newProcess(name, globalProcessNumber, commandSize, -1);
         globalProcessNumber++;
-        
+
         processes.push_back(newProcess);
 
         system("cls");
@@ -818,7 +869,7 @@ void processSchedulerAutoAdder(std::unique_ptr<Scheduler>& scheduler, std::vecto
     }
 }
 
-void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& batchFrequency, int& minCommandNum, int& maxCommandNum, int& delay) {
+void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& batchFrequency, int& minCommandNum, int& maxCommandNum, int& delay, int& maxMemory, int& memoryFrame, int& memoryPerProcess) {
     std::ifstream configFile("config.txt");
 
     if (!configFile.is_open()) {
@@ -852,7 +903,20 @@ void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& bat
         else if (param == "delays-per-exec") {
             iss >> delay;
         }
+        else if (param == "max-overall-mem") {
+            iss >> maxMemory;
+        }
+        else if (param == "mem-per-frame") {
+            iss >> memoryFrame;
+        }
+        else if (param == "mem-per-proc") {
+            iss >> memoryPerProcess;
+        }
     }
+
+    do {
+        minMemory += memoryFrame;
+    } while (minMemory < memoryPerProcess);
 
     configFile.close();
 }
@@ -886,7 +950,7 @@ void handleReportUtilCommand(std::unique_ptr<Scheduler>& scheduler)
 void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, int minCommandNum, int maxCommandNum) {
     schedulerRunning = true;
     stopRequested = false;
-  
+
     // Reinforce minimum batch frequency
     if (batchFrequency < 1) {
         batchFrequency = 1;
@@ -894,7 +958,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
 
     while (schedulerRunning && !stopRequested) {
         // Sleep based on the batch frequency
-        std::this_thread::sleep_for(std::chrono::milliseconds(35));
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
         for (int i = 0; i < batchFrequency; i++) {
             volatile int x = 0;
             x++;
@@ -947,6 +1011,7 @@ int main()
     int maxCommandNum;
     int delay;
 
+
     while (true) {
         std::getline(std::cin, input);
         std::istringstream iss(input);
@@ -955,7 +1020,7 @@ int main()
 
         if (command == "initialize") {
             // TODO: read from config.txt and assign the values
-            readConfigFile(numCore, mode, quantumCycle, batchFrequency, minCommandNum, maxCommandNum, delay);
+            readConfigFile(numCore, mode, quantumCycle, batchFrequency, minCommandNum, maxCommandNum, delay, maxMemory, memoryFrame, memoryPerProcess);
 
             system("cls");
 
@@ -969,6 +1034,9 @@ int main()
             std::cout << "  -> Min Instructions/Proc : " << minCommandNum << "\n";
             std::cout << "  -> Max Instructions/Proc : " << maxCommandNum << "\n";
             std::cout << "  -> Delay per Execution   : " << delay << "\n";
+            std::cout << "  -> Overall Memory        : " << maxMemory << "\n";
+            std::cout << "  -> Memory Per Frame      : " << memoryFrame << "\n";
+            std::cout << "  -> Memory Per Process    : " << memoryPerProcess << "\n";
             std::cout << "======================================\n";
 
             std::cout << "\nLoading main menu in 3... ";
@@ -977,6 +1045,8 @@ int main()
             std::this_thread::sleep_for(std::chrono::seconds(1));
             std::cout << "1...\n";
             std::this_thread::sleep_for(std::chrono::seconds(1));
+
+            memoryBlock.resize(maxMemory, 0);
 
             system("cls");
 
@@ -1006,7 +1076,7 @@ int main()
     else if (mode == "rr") {
         scheduler = std::make_unique<RR_Scheduler>(numCore, quantumCycle, delay);
     }
-        
+
 
     // Thread which constantly accepts new process into the process vector
     // (Since users is now able to add processes into the ready queue while the scheduler is running)
