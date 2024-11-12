@@ -958,7 +958,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
 
     while (schedulerRunning && !stopRequested) {
         // Sleep based on the batch frequency
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
         for (int i = 0; i < batchFrequency; i++) {
             volatile int x = 0;
             x++;
