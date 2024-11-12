@@ -264,6 +264,75 @@ public:
     }
 };
 
+class MemoryBlock {
+public:
+    int maxOverallMem = 16384;     // Total memory in KB
+    int memPerFrame = 16;          // Frame size in KB
+    int memPerProc = 4096;         // Memory needed per process
+    int usedMemory = 0;            // Track used memory in KB
+    std::vector<bool> memoryFrames; // Memory frames allocation status
+
+    MemoryBlock() : memoryFrames(maxOverallMem / memPerFrame, false) {}
+
+    bool allocateMemory(int processId) {
+        int framesNeeded = memPerProc / memPerFrame;
+        int availableFrames = 0;
+
+        // Find a contiguous block of frames for allocation
+        for (int i = 0; i <= memoryFrames.size() - framesNeeded; ++i) {
+            bool canAllocate = true;
+            for (int j = 0; j < framesNeeded; ++j) {
+                if (memoryFrames[i + j]) {
+                    canAllocate = false;
+                    break;
+                }
+            }
+
+            if (canAllocate) {
+                for (int j = 0; j < framesNeeded; ++j) {
+                    memoryFrames[i + j] = true;
+                }
+                usedMemory += memPerProc;
+                return true;
+            }
+        }
+
+        // No sufficient contiguous block found, memory full for this process
+        return false;
+    }
+
+    void deallocateMemory(int processId) {
+        int framesFreed = memPerProc / memPerFrame;
+
+        // Free up frames for the completed process
+        for (int i = 0; i < memoryFrames.size(); ++i) {
+            if (memoryFrames[i]) {
+                for (int j = 0; j < framesFreed; ++j) {
+                    memoryFrames[i + j] = false;
+                }
+                usedMemory -= memPerProc;
+                return;
+            }
+        }
+    }
+
+    int calculateExternalFragmentation() {
+        int unusedFrames = 0;
+        for (bool frame : memoryFrames) {
+            if (!frame) unusedFrames++;
+        }
+        return unusedFrames * memPerFrame;
+    }
+
+    void printMemoryStatus() {
+        std::cout << "Total memory: " << maxOverallMem << " KB\n";
+        std::cout << "Used memory: " << usedMemory << " KB\n";
+        std::cout << "Free memory: " << maxOverallMem - usedMemory << " KB\n";
+        std::cout << "External Fragmentation: " << calculateExternalFragmentation() << " KB\n";
+    }
+};
+
+
 // Vector of processes moved to global var
 std::vector<Process> processes;
 
@@ -301,6 +370,68 @@ public:
         processQueue.push(processPtr);
         allProcesses.push_back(processPtr);
     }
+
+    // MemoryBlock memory;
+
+    /*
+    void coreThreadFunction(int coreId, int delay) {
+        while (true) {
+            std::shared_ptr<Process> processPtr = nullptr;
+
+            {
+                std::lock_guard<std::mutex> lock(queueMutex);
+
+                // Fetch process and attempt memory allocation
+                if (!coreBusy[coreId] && !processQueue.empty()) {
+                    processPtr = processQueue.front();
+
+                    if (memory.allocateMemory(processPtr->getPid())) {
+                        processQueue.pop();  // Remove from queue if memory allocated
+                        processPtr->setCoreId(coreId);
+                        coreBusy[coreId] = true;
+                        if (processPtr->getStartTime() == 0) {
+                            processPtr->setStartTime();
+                        }
+                    } else {
+                        // Memory full, move process to end of queue
+                        processQueue.pop();
+                        processQueue.push(processPtr);
+                    }
+                }
+            }
+
+            if (!processPtr) {
+                coreBusy[coreId] = false;
+                continue;
+            }
+
+            // Execute commands until process finishes or quantum ends
+            int cyclesExecuted = 0;
+            while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
+                processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);
+                cyclesExecuted++;
+            }
+
+            // Requeue or deallocate memory after completion
+            if (!processPtr->isFinished()) {
+                std::lock_guard<std::mutex> lock(queueMutex);
+                processQueue.push(processPtr);
+            } else {
+                memory.deallocateMemory(processPtr->getPid());
+                coreBusy[coreId] = false;
+            }
+        }
+    }
+
+    void printCoreStatus() override {
+        system("cls");
+        std::cout << "Current Memory Status:\n";
+        memory.printMemoryStatus();
+        // Existing code to display core and process status
+    }
+
+
+    */
 
     void coreThreadFunction(int coreId, int delay) {
         while (true) {
