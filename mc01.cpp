@@ -958,7 +958,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
 
     while (schedulerRunning && !stopRequested) {
         // Sleep based on the batch frequency
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         for (int i = 0; i < batchFrequency; i++) {
             volatile int x = 0;
             x++;
@@ -966,11 +966,11 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
 
         // Generate a new process with a random number of commands
         int commandSize = rand() % (maxCommandNum - minCommandNum + 1) + minCommandNum;
-        std::string processName = "p" + std::to_string(globalProcessNumber++);
+        std::string processName = "p" + std::to_string(globalProcessNumber);
 
         Process newProcess(processName, globalProcessNumber, commandSize, -1);
         processes.push_back(newProcess);
-
+        globalProcessNumber++;
         // Do not print anything while the scheduler is running
     }
 
