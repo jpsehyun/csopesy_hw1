@@ -452,15 +452,17 @@ public:
                     processPtr = processQueue.front();
                     processQueue.pop();  // Pop it from the queue
 
-                    // Try to allocate memory for the process
-                    if (allocateMemory(minMemory, processPtr->getPid(), memoryBlock) || isProcessInMemory(memoryBlock, processPtr->getPid())) {
-                        // Set core ID and start times
+                    allocateMemory(minMemory, processPtr->getPid(), memoryBlock);
+
+                    if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
                         processPtr->setCoreId(coreId);
                         if (processPtr->getStartTime() == 0) {
                             processPtr->setStartTime();
                         }
                         coreBusy[coreId] = true;  // Mark the core as busy
                         pidSet.insert(processPtr->getPid());
+
+                        //std::cout << "Core " << coreId << " is handling Process " << processPtr->getPid() << std::endl;
                     }
                     else {
                         // If memory allocation fails, requeue the process and skip this core's cycle
@@ -482,6 +484,7 @@ public:
                 while (cyclesExecuted < quantumCycle && !processPtr->isFinished()) {
                     //std::this_thread::sleep_for(std::chrono::nanoseconds(1));
                     processPtr->executePrintCommandsRR(delay, processPtr->getName(), processes);  // Execute one command
+                    //std::cout << "Core " << coreId << " is handling Process " << processPtr->getPid() << std::endl;
                     cyclesExecuted++;
                 }
             }
