@@ -22,7 +22,7 @@ std::atomic<bool> schedulerRunning(false);  // Controls the scheduler-test state
 std::atomic<bool> stopRequested(false);     // Controls when to stop scheduler-test
 // Bad practice (global var), lazy way to count the number of proceess
 std::atomic<int> globalProcessNumber = 1;
-
+std::queue<int> insertionOrder;
 
 int minMemory = 0; // This would be minMemory += memoryFrame while its < memoryPerPrcoess (what is the minimum number of memory needed for each process)
 int maxMemory;
@@ -64,6 +64,7 @@ bool allocateMemory(int minMemory, int pid, std::vector<int>& memoryBlock) {
             for (int j = 0; j < minMemory; ++j) {
                 memoryBlock[i + j] = pid;
             }
+            insertionOrder.push(pid);
             return true;
         }
     }
@@ -453,6 +454,13 @@ public:
                     processQueue.pop();  // Pop it from the queue
 
                     allocateMemory(minMemory, processPtr->getPid(), memoryBlock);
+                    if (!allocateMemory(minMemory, processPtr->getPid(), memoryBlock) && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
+                        int oldest = insertionOrder.front();
+                        insertionOrder.pop();
+
+                        deallocateMemory(oldest, memoryBlock);
+                        allocateMemory(minMemory, processPtr->getPid(), memoryBlock);
+                    }
 
                     if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
                         processPtr->setCoreId(coreId);
@@ -505,7 +513,7 @@ public:
             std::vector<int> ranges = findNonZeroRanges(memoryBlock);
 
             std::ofstream logFile(fileName, std::ios::out);
-            if (logFile.is_open()) {
+            /*if (logFile.is_open()) {
                 logFile << "Timestamp: " << timeBuffer << "\n"
                     << "Processes in memory: " << numProcessesInMemory << "\n"
                     << "Total external fragmentation in KB: " << totalFreeSpace << " units\n"
@@ -529,7 +537,7 @@ public:
                 // Close the file
                 logFile.close();
             }
-
+            */
             // If the process is not finished after its quantum, requeue it
             if (!processPtr->isFinished()) {
                 std::lock_guard<std::mutex> lock(queueMutex);
