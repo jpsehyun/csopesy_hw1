@@ -12,6 +12,7 @@
 #include <atomic>
 #include <set>
 #include <random>   //rnadom number generator used for memoryReq
+#include <utility>
 
 /*##################################################################
 * Instructions: Type initialize to start
@@ -1149,6 +1150,56 @@ void stopSchedulerTest() {
     schedulerRunning = false;
 }
 
+void processSmi(std::vector<Process>& processes) {
+
+    float cpuUtilization = 0.0f; // CPU-Util
+    int usedMemory = 0; // Memory Usage
+    int totalMemory = maxMemory; // Memory Usage
+
+    // CPU-Util
+
+    // Memory Usage
+    for (int pid : pidSet) {
+        for (const auto& process : processes) {
+            if (process.getPid() == pid) {
+                usedMemory += process.getMemReq(); // Add memory usage of this process
+                break; // Stop searching after the correct process is found
+            }
+        }
+    }
+
+    // Memory Util
+    float memoryUtilization = static_cast<float>(usedMemory) / totalMemory * 100.0f; // Memory Util
+
+    // Running Processes and Memory Usage
+    std::vector<std::pair<int, int>> processMemoryUsage; // Processes in Memory (PID, memoryUsed)
+    for (int pid : pidSet) {
+        for (const auto& process : processes) {
+            if (process.getPid() == pid) {
+                processMemoryUsage.push_back({ pid, process.getMemReq() });
+                break; // Stop searching after the correct process is found
+            }
+        }
+    }
+
+    // PRINTING
+    std::cout << "----------------------------------------------------------------\n";
+    std::cout << "|                          PROCESS-SMI                         |\n";
+    std::cout << "----------------------------------------------------------------\n";
+
+    std::cout << "CPU-Util: " << cpuUtilization << "%\n";
+    std::cout << "Memory Usage: " << usedMemory << "MiB / " << totalMemory << "MiB\n";
+    std::cout << "Memory Utilization: " << memoryUtilization << "%\n\n";
+
+    std::cout << "----------------------------------------------------------------\n";
+    std::cout << "Running processes and memory usage:\n";
+    std::cout << "----------------------------------------------------------------\n";
+    for (const auto& entry : processMemoryUsage) { // List down all processes
+        std::cout << "process" << entry.first << " " << entry.second << "MiB\n";
+    }
+    std::cout << "----------------------------------------------------------------\n";
+}
+
 int main()
 {
     printASCII();
@@ -1305,6 +1356,10 @@ int main()
             printASCII();
             printWelcomeMessage();
             std::cout << "\n[Logs successfully saved to csopesy-log.txt!]\n";
+        }
+        else if (command == "process-smi")
+        {
+            processSmi(std::ref(processes));
         }
         else
         {
