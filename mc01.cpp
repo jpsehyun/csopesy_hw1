@@ -68,6 +68,7 @@ void initializeMemoryBlockPage() {
 bool allocateMemoryPage(int memReq, int pid) {
     int totalFrames = maxOverallMem / memPerFrame;
     int requiredFrames = std::ceil(memReq / memPerFrame);
+    bool canAllocate = true;
 
     // Check if the process is already in memory
     for (int frame : memoryBlockPage) {
@@ -76,27 +77,38 @@ bool allocateMemoryPage(int memReq, int pid) {
         }
     }
 
-    // Find contiguous free frames
-    for (int i = 0; i <= totalFrames - requiredFrames;) {
-        bool canAllocate = true;
-
-        for (int j = 0; j < requiredFrames; j++) {
-            if (memoryBlockPage[i + j] != 0) {
+    int x = 0;
+    // go through every page in the memoryBlockPage
+    for (int page : memoryBlockPage) {
+        // see 0 = no pid, incremet int x, if int x = reqFrame, canAllocate is true
+        if (page == 0) {
+            x++;
+            if (x == requiredFrames) {
+                canAllocate = true;
+            }
+            // if gone through whole memoryBlockpage and x is less that reqFrame canAllocate is false
+            else {
                 canAllocate = false;
-                i += j + 1; // Skip to the next possible start
-                break;
             }
-        }
-
-        if (canAllocate) {
-            for (int j = 0; j < requiredFrames; j++) {
-                memoryBlockPage[i + j] = pid; // Allocate frames
-            }
-            return true;
         }
     }
 
-    return false; // Not enough contiguous frames available
+    int flag = 0;
+    // if canAllocate is true, then turn first empty n frames into desired pid where n is the reqFrame
+    if (canAllocate) {
+        for (int page : memoryBlockPage) {
+            if (page == 0) {
+                page = pid;
+                flag++;
+            }
+            if (flag >= requiredFrames) {
+                return true;
+                break;
+            }
+        }
+    }
+    
+    return false; // Not enough frames available
 }
 
 // Function to deallocate memory for a process
@@ -508,6 +520,7 @@ public:
     {
         std::cout << "Process: " << pname << std::endl;
         std::cout << "ID: " << pid << std::endl;
+        std::cout << "Memory Req: " << memReq << std::endl;
         if (numFinishedCommands < numCommands) {
             std::cout << "\nCurrent Instruction Line: " << numFinishedCommands << std::endl;
             std::cout << "Lines of Code: " << numCommands << std::endl;
@@ -1192,6 +1205,7 @@ int main()
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
             memoryBlock.resize(maxMemory, 0);
+            initializeMemoryBlockPage();
 
             system("cls");
 
