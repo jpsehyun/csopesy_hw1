@@ -44,7 +44,7 @@ int tempQuantum = 0;
 
 // Function to initialize the memory block for paging
 void initializeMemoryBlockPage() {
-    int totalFrames = maxOverallMem / memPerFrame;
+    int totalFrames = maxMemory / memoryFrame;
     memoryBlockPage.resize(totalFrames, 0); // Initialize all frames to 0 (free)
 }
 
@@ -238,11 +238,9 @@ bool isProcessInMemory(const std::vector<int>& memoryBlock, int pid) {
 
 // Function to get the memory required for a specific process between min memory per process and max memory per process
 int memoryReqRandomizer(int min, int max) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(min, max);
+    if (min > max) std::swap(min, max);
 
-    return dis(gen);
+    return min + (rand() % (max - min + 1));
 }
 
 // Function that returns a set of number which is the starting and end point of each pid in memory block
@@ -521,7 +519,7 @@ public:
     {
         std::cout << "Process: " << pname << std::endl;
         std::cout << "ID: " << pid << std::endl;
-        std::cout << "Memory Req: " << memReq << std::endl;
+        std::cout << "Memory Required: " << memReq << std::endl;
         if (numFinishedCommands < numCommands) {
             std::cout << "\nCurrent Instruction Line: " << numFinishedCommands << std::endl;
             std::cout << "Lines of Code: " << numCommands << std::endl;
@@ -540,6 +538,7 @@ public:
     virtual ~Scheduler() = default;
     virtual void addProcess(const Process& p) = 0;
     virtual void printCoreStatus() = 0;
+    virtual void printCoreStatusMemory() = 0;
     virtual std::string formatTime(std::time_t time) = 0;
     bool memoryFull = false;
 };
@@ -653,7 +652,7 @@ public:
             std::vector<int> ranges = findNonZeroRanges(memoryBlock);
 
             std::ofstream logFile(fileName, std::ios::out);
-            if (logFile.is_open()) {
+            /*if (logFile.is_open()) {
                 logFile << "Timestamp: " << timeBuffer << "\n"
                     << "Processes in memory: " << numProcessesInMemory << "\n"
                     << "Total external fragmentation in KB: " << totalFreeSpace << " units\n"
@@ -676,7 +675,7 @@ public:
 
                 // Close the file
                 logFile.close();
-            }
+            }*/
 
             // If the process is not finished after its quantum, requeue it
             if (!processPtr->isFinished()) {
@@ -736,6 +735,24 @@ public:
                 std::cout << "Process " << process->getName() << " (" << startTimeFormatted << "): "
                     << process->getFinishedCommands() << "/"
                     << process->getTotalCommands() << " commands executed.\n";
+            }
+        }
+    }
+
+    void printCoreStatusMemory() override {
+
+        std::vector<std::shared_ptr<Process>> activeProcesses(numCores, nullptr);
+
+        for (const auto& process : allProcesses) {
+            if (!process->isFinished() && process->getCoreId() >= 0) {
+                activeProcesses[process->getCoreId()] = process; // Assign the process to its core
+            }
+        }
+
+        for (int coreId = 0; coreId < numCores; coreId++) {
+            if (activeProcesses[coreId]) {
+                std::string startTimeFormatted = formatTime(activeProcesses[coreId]->getStartTime());
+                std::cout << "Process " << activeProcesses[coreId]->getName() << " " << activeProcesses[coreId]->getMemReq() << "MiB" << "\n";
             }
         }
     }
@@ -872,6 +889,27 @@ public:
                     << process->getFinishedCommands() << "/" << process->getTotalCommands() << " commands executed.\n";
             }
         }
+    }
+
+    void printCoreStatusMemory() override
+    {
+   
+
+        std::cout << "Current Status of Running Processes:\n";
+        for (const auto& process : allProcesses)
+        {
+            // Only show processes that have been assigned to a core and are not finished
+            if (process->getCoreId() >= 0 && !process->isFinished())
+            {
+                std::string startTimeFormatted = formatTime(process->getStartTime());
+
+                std::cout << "Process " << process->getName() << " (" << startTimeFormatted << ") (Core "
+                    << process->getCoreId() << "): "
+                    << process->getFinishedCommands() << "/" << process->getTotalCommands() << " commands executed.\n";
+            }
+        }
+
+        
     }
 };
 
@@ -1107,7 +1145,6 @@ void handleReportUtilCommand(std::unique_ptr<Scheduler>& scheduler)
 void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, int minCommandNum, int maxCommandNum) {
     schedulerRunning = true;
     stopRequested = false;
-    int memoryNeed = memoryReqRandomizer(minMemPerProc, maxMemPerProc);
 
     // Reinforce minimum batch frequency
     if (batchFrequency < 1) {
@@ -1126,7 +1163,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
         int commandSize = rand() % (maxCommandNum - minCommandNum + 1) + minCommandNum;
         std::string processName = "p" + std::to_string(globalProcessNumber);
 
-        Process newProcess(processName, globalProcessNumber, commandSize, -1, memoryNeed);
+        Process newProcess(processName, globalProcessNumber, commandSize, -1, memoryReqRandomizer(minMemPerProc, maxMemPerProc));
         processes.push_back(newProcess);
         globalProcessNumber++;
         // Do not print anything while the scheduler is running
@@ -1150,7 +1187,7 @@ void stopSchedulerTest() {
     schedulerRunning = false;
 }
 
-void processSmi(std::vector<Process>& processes) {
+void processSmi(std::vector<Process>& processes, std::unique_ptr<Scheduler>& scheduler) {
 
     float cpuUtilization = 0.0f; // CPU-Util
     int usedMemory = 0; // Memory Usage
@@ -1194,9 +1231,7 @@ void processSmi(std::vector<Process>& processes) {
     std::cout << "----------------------------------------------------------------\n";
     std::cout << "Running processes and memory usage:\n";
     std::cout << "----------------------------------------------------------------\n";
-    for (const auto& entry : processMemoryUsage) { // List down all processes
-        std::cout << "process" << entry.first << " " << entry.second << "MiB\n";
-    }
+    scheduler -> printCoreStatusMemory();
     std::cout << "----------------------------------------------------------------\n";
 }
 
@@ -1359,7 +1394,7 @@ int main()
         }
         else if (command == "process-smi")
         {
-            processSmi(std::ref(processes));
+            processSmi(std::ref(processes), scheduler);
         }
         else
         {
