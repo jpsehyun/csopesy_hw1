@@ -66,9 +66,9 @@ void initializeMemoryBlockPage() {
 //}
 
 // Function to allocate memory for a process
-bool allocateMemoryPage(int memReq, int pid) {
-    int totalFrames = maxOverallMem / memPerFrame;
-    int requiredFrames = std::ceil(memReq / memPerFrame);
+bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) {
+    int totalFrames = maxMemory / memoryFrame;
+    int requiredFrames = std::ceil(memReq / memoryFrame);
     bool canAllocate = true;
 
     // Check if the process is already in memory
@@ -84,7 +84,7 @@ bool allocateMemoryPage(int memReq, int pid) {
         // see 0 = no pid, incremet int x, if int x = reqFrame, canAllocate is true
         if (page == 0) {
             x++;
-            if (x == requiredFrames) {
+            if (x >= requiredFrames) {
                 canAllocate = true;
             }
             // if gone through whole memoryBlockpage and x is less that reqFrame canAllocate is false
@@ -97,23 +97,28 @@ bool allocateMemoryPage(int memReq, int pid) {
     int flag = 0;
     // if canAllocate is true, then turn first empty n frames into desired pid where n is the reqFrame
     if (canAllocate) {
+        
         for (int page : memoryBlockPage) {
             if (page == 0) {
                 page = pid;
                 flag++;
             }
-            if (flag >= requiredFrames) {
+            if (flag == requiredFrames + 1) {
+                insertionOrder.push(pid);
                 return true;
                 break;
             }
         }
     }
+
+    else {
+        return false; // Not enough frames available
+    }
     
-    return false; // Not enough frames available
 }
 
 // Function to deallocate memory for a process
-void deallocateMemoryPage(int pid) {
+void deallocateMemoryPage(int pid, std::vector<int>& memoryBlockPage) {
     for (int& frame : memoryBlockPage) {
         if (frame == pid) {
             frame = 0; // Mark frame as free
@@ -122,7 +127,7 @@ void deallocateMemoryPage(int pid) {
 }
 
 // Function to calculate external fragmentation in KB
-int calculateExternalFragmentationPage() {
+int calculateExternalFragmentationPage(std::vector<int>& memoryBlockPage) {
     int freeFrames = 0;
 
     for (int frame : memoryBlockPage) {
@@ -131,11 +136,11 @@ int calculateExternalFragmentationPage() {
         }
     }
 
-    return freeFrames * memPerFrame; // Total free memory in KB
+    return freeFrames * memoryFrame; // Total free memory in KB
 }
 
 // Function to calculate the number of processes in memory
-int calculateNumProcessInMemoryPage() {
+int calculateNumProcessInMemoryPage(std::vector<int>& memoryBlockPage) {
     std::set<int> uniqueProcesses;
 
     for (int frame : memoryBlockPage) {
@@ -148,7 +153,7 @@ int calculateNumProcessInMemoryPage() {
 }
 
 // Function to check if a process is in memory
-bool isProcessInMemoryPage(int pid) {
+bool isProcessInMemoryPage(int pid, std::vector<int>& memoryBlockPage) {
     for (int frame : memoryBlockPage) {
         if (frame == pid) {
             return true;
@@ -591,30 +596,59 @@ public:
                     processPtr = processQueue.front();
                     processQueue.pop();  // Pop it from the queue
 
-                    allocateMemory(minMemory, processPtr->getPid(), memoryBlock);
-                    if (!allocateMemory(minMemory, processPtr->getPid(), memoryBlock) && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
-                        int oldest = insertionOrder.front();
-                        insertionOrder.pop();
+                    if (maxMemory == memoryFrame) {
+                        allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
+                        if (!allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock) && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
+                            int oldest = insertionOrder.front();
+                            insertionOrder.pop();
 
-                        deallocateMemory(oldest, memoryBlock);
-                        allocateMemory(minMemory, processPtr->getPid(), memoryBlock);
-                    }
-                    allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
-
-                    if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
-                        processPtr->setCoreId(coreId);
-                        if (processPtr->getStartTime() == 0) {
-                            processPtr->setStartTime();
+                            deallocateMemory(oldest, memoryBlock);
+                            allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
                         }
-                        coreBusy[coreId] = true;  // Mark the core as busy
-                        pidSet.insert(processPtr->getPid());
+                        allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
 
-                        //std::cout << "Core " << coreId << " is handling Process " << processPtr->getPid() << std::endl;
+                        if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
+                            processPtr->setCoreId(coreId);
+                            if (processPtr->getStartTime() == 0) {
+                                processPtr->setStartTime();
+                            }
+                            coreBusy[coreId] = true;  // Mark the core as busy
+                            pidSet.insert(processPtr->getPid());
+
+                            //std::cout << "Core " << coreId << " is handling Process " << processPtr->getPid() << std::endl;
+                        }
+                        else {
+                            // If memory allocation fails, requeue the process and skip this core's cycle
+                            processQueue.push(processPtr);  // Requeue the process
+                            continue;  // Skip the rest of the loop iteration
+                        }
                     }
                     else {
-                        // If memory allocation fails, requeue the process and skip this core's cycle
-                        processQueue.push(processPtr);  // Requeue the process
-                        continue;  // Skip the rest of the loop iteration
+                        allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+                        if (!allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage) && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
+                            int oldest = insertionOrder.front();
+                            insertionOrder.pop();
+
+                            deallocateMemoryPage(oldest, memoryBlockPage);
+                            allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+                        }
+                        allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+
+                        if (!isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
+                            processPtr->setCoreId(coreId);
+                            if (processPtr->getStartTime() == 0) {
+                                processPtr->setStartTime();
+                            }
+                            coreBusy[coreId] = true;  // Mark the core as busy
+                            pidSet.insert(processPtr->getPid());
+
+                            //std::cout << "Core " << coreId << " is handling Process " << processPtr->getPid() << std::endl;
+                        }
+                        else {
+                            // If memory allocation fails, requeue the process and skip this core's cycle
+                            processQueue.push(processPtr);  // Requeue the process
+                            continue;  // Skip the rest of the loop iteration
+                        }
                     }
                 }
             }
@@ -637,45 +671,14 @@ public:
             }
             catch (const std::exception&) {}
 
-            int totalFreeSpace = calculateExternalFragmentation(memoryBlock);
-            int numProcessesInMemory = calculateNumProcessInMemory(memoryBlock);
-
-            // Get current time for timestamp
-            std::time_t timestamp = std::time(nullptr);
-            std::tm localTime;
-            localtime_s(&localTime, &timestamp);
-            char timeBuffer[100];
-            std::strftime(timeBuffer, sizeof(timeBuffer), "%m/%d/%Y %I:%M:%S %p", &localTime);
-
-            std::string fileName = "memory_stamp_" + std::to_string(tempQuantum += quantumCycle) + ".txt";
-
-            std::vector<int> ranges = findNonZeroRanges(memoryBlock);
-
-            std::ofstream logFile(fileName, std::ios::out);
-            /*if (logFile.is_open()) {
-                logFile << "Timestamp: " << timeBuffer << "\n"
-                    << "Processes in memory: " << numProcessesInMemory << "\n"
-                    << "Total external fragmentation in KB: " << totalFreeSpace << " units\n"
-                    << "--------------------------------------------\n";
-
-                logFile << "--------end-------- = " << maxMemory << "\n";
-                auto setPtr = pidSet.rbegin();
-
-                for (size_t i = ranges.size(); i > 0; i -= 2) {
-                    logFile << ranges[i - 1] << "\n";
-
-                    if (setPtr != pidSet.rend()) {
-                        logFile << "P" << *setPtr << "\n";
-                        setPtr++;
-                    }
-
-                    logFile << ranges[i - 2] - 1 << "\n\n";
-                }
-                logFile << "--------start------ = " << 0 << "\n";
-
-                // Close the file
-                logFile.close();
-            }*/
+            if (maxMemory == memoryFrame) {
+                int totalFreeSpace = calculateExternalFragmentation(memoryBlock);
+                int numProcessesInMemory = calculateNumProcessInMemory(memoryBlock);
+            }
+            else {
+                int totalFreeSpace = calculateExternalFragmentationPage(memoryBlockPage);
+                int numProcessesInMemory = calculateNumProcessInMemoryPage(memoryBlockPage);
+            }
 
             // If the process is not finished after its quantum, requeue it
             if (!processPtr->isFinished()) {
@@ -684,8 +687,15 @@ public:
                 processQueue.push(processPtr);  // Requeue to the back of the queue
             }
             else {
-                deallocateMemory(processPtr->getPid(), memoryBlock);
-                pidSet.erase(processPtr->getPid());
+                if (maxMemory == memoryFrame) {
+                    deallocateMemory(processPtr->getPid(), memoryBlock);
+                    pidSet.erase(processPtr->getPid());
+                }
+                else {
+                    deallocateMemoryPage(processPtr->getPid(), memoryBlockPage);
+                    pidSet.erase(processPtr->getPid());
+                }
+
             }
 
             coreBusy[coreId] = false;  // Mark the core as idle after processing
