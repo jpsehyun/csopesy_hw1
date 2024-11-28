@@ -11,6 +11,7 @@
 #include <mutex>
 #include <atomic>
 #include <set>
+#include <random>   //rnadom number generator used for memoryReq
 
 /*##################################################################
 * Instructions: Type initialize to start
@@ -29,10 +30,115 @@ int maxMemory;
 int memoryFrame;
 int memoryPerProcess;
 std::vector<int> memoryBlock;
+std::vector<int> memoryBlockPage; // memory block for page allocator
 
 std::set<int> pidSet; // I need to know the order of pID that is being worked on to print
 
 int tempQuantum = 0;
+
+
+// Function to initialize the memory block for paging
+void initializeMemoryBlockPage() {
+    int totalFrames = maxOverallMem / memPerFrame;
+    memoryBlockPage.resize(totalFrames, 0); // Initialize all frames to 0 (free)
+}
+
+// Function to remove the oldest process 
+void removeOldestProcess() {
+    if (!processQueue.empty()) {
+        int oldestProcess = processQueue.front();
+        processQueue.pop(); // Remove the oldest process from the queue
+
+        // Free all frames occupied by the oldest process
+        for (int& frame : memoryBlockPage) {
+            if (frame == oldestProcess) {
+                frame = 0; // Mark frame as free
+            }
+        }
+
+        std::cout << "Removed process " << oldestProcess << " from memory (FIFO).\n";
+    }
+}
+
+// Function to allocate memory for a process
+bool allocateMemoryPage(int memReq, int pid) {
+    int totalFrames = maxOverallMem / memPerFrame;
+    int requiredFrames = std::ceil(static_cast<double>(memReq) / memPerFrame);
+
+    // Check if the process is already in memory
+    for (int frame : memoryBlockPage) {
+        if (frame == pid) {
+            return false; // Process is already allocated
+        }
+    }
+
+    // Find contiguous free frames
+    for (int i = 0; i <= totalFrames - requiredFrames;) {
+        bool canAllocate = true;
+
+        for (int j = 0; j < requiredFrames; j++) {
+            if (memoryBlockPage[i + j] != 0) {
+                canAllocate = false;
+                i += j + 1; // Skip to the next possible start
+                break;
+            }
+        }
+
+        if (canAllocate) {
+            for (int j = 0; j < requiredFrames; j++) {
+                memoryBlockPage[i + j] = pid; // Allocate frames
+            }
+            return true;
+        }
+    }
+
+    return false; // Not enough contiguous frames available
+}
+
+// Function to deallocate memory for a process
+void deallocateMemoryPage(int pid) {
+    for (int& frame : memoryBlockPage) {
+        if (frame == pid) {
+            frame = 0; // Mark frame as free
+        }
+    }
+}
+
+// Function to calculate external fragmentation in KB
+int calculateExternalFragmentationPage() {
+    int freeFrames = 0;
+
+    for (int frame : memoryBlockPage) {
+        if (frame == 0) {
+            freeFrames++;
+        }
+    }
+
+    return freeFrames * memPerFrame; // Total free memory in KB
+}
+
+// Function to calculate the number of processes in memory
+int calculateNumProcessInMemoryPage() {
+    std::set<int> uniqueProcesses;
+
+    for (int frame : memoryBlockPage) {
+        if (frame != 0) {
+            uniqueProcesses.insert(frame);
+        }
+    }
+
+    return uniqueProcesses.size();
+}
+
+// Function to check if a process is in memory
+bool isProcessInMemoryPage(int pid) {
+    for (int frame : memoryBlockPage) {
+        if (frame == pid) {
+            return true;
+        }
+    }
+    return false;
+}
 
 bool allocateMemory(int minMemory, int pid, std::vector<int>& memoryBlock) {
     for (int block : memoryBlock) {
@@ -111,6 +217,15 @@ bool isProcessInMemory(const std::vector<int>& memoryBlock, int pid) {
         }
     }
     return false;
+}
+
+// Function to get the memory required for a specific process between min memory per process and max memory per process
+int memoryReqRandomizer(int min, int max) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(min, max);
+
+    return dis(gen);
 }
 
 // Function that returns a set of number which is the starting and end point of each pid in memory block
@@ -887,7 +1002,7 @@ void processSchedulerAutoAdder(std::unique_ptr<Scheduler>& scheduler, std::vecto
     }
 }
 
-void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& batchFrequency, int& minCommandNum, int& maxCommandNum, int& delay, int& maxMemory, int& memoryFrame, int& memoryPerProcess) {
+void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& batchFrequency, int& minCommandNum, int& maxCommandNum, int& delay, int& maxMemory, int& memoryFrame, int& minMemPerProc, int& maxMemPerProc) {
     std::ifstream configFile("config.txt");
 
     if (!configFile.is_open()) {
@@ -924,17 +1039,21 @@ void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& bat
         else if (param == "max-overall-mem") {
             iss >> maxMemory;
         }
-        else if (param == "mem-per-frame") {
+        /*else if (param == "mem-per-frame") {
             iss >> memoryFrame;
+        }*/
+        else if (param == "min-mem-per-proc") {
+            iss >> minMemPerProc;
         }
-        else if (param == "mem-per-proc") {
-            iss >> memoryPerProcess;
+        else if (param == "max-mem-per-proc") {
+            iss >> maxMemPerProc;
         }
     }
 
-    do {
+    /*do {
         minMemory += memoryFrame;
-    } while (minMemory < memoryPerProcess);
+    } while (minMemory < memoryPerProcess);*/
+
 
     configFile.close();
 }
