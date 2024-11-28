@@ -31,6 +31,10 @@ int memoryFrame;
 int memoryPerProcess;
 std::vector<int> memoryBlock;
 std::vector<int> memoryBlockPage; // memory block for page allocator
+int maxOverallMem;
+int memPerFrame;
+int minMemPerProc;
+int maxMemPerProc;
 
 std::set<int> pidSet; // I need to know the order of pID that is being worked on to print
 
@@ -43,27 +47,27 @@ void initializeMemoryBlockPage() {
     memoryBlockPage.resize(totalFrames, 0); // Initialize all frames to 0 (free)
 }
 
-// Function to remove the oldest process 
-void removeOldestProcess() {
-    if (!processQueue.empty()) {
-        int oldestProcess = processQueue.front();
-        processQueue.pop(); // Remove the oldest process from the queue
-
-        // Free all frames occupied by the oldest process
-        for (int& frame : memoryBlockPage) {
-            if (frame == oldestProcess) {
-                frame = 0; // Mark frame as free
-            }
-        }
-
-        std::cout << "Removed process " << oldestProcess << " from memory (FIFO).\n";
-    }
-}
+// Function to remove the oldest process  not working btw
+//void removeOldestProcess() {
+//    if (!processQueue.empty()) {
+//        int oldestProcess = processQueue.front();
+//        processQueue.pop(); // Remove the oldest process from the queue
+//
+//        // Free all frames occupied by the oldest process
+//        for (int& frame : memoryBlockPage) {
+//            if (frame == oldestProcess) {
+//                frame = 0; // Mark frame as free
+//            }
+//        }
+//
+//        std::cout << "Removed process " << oldestProcess << " from memory (FIFO).\n";
+//    }
+//}
 
 // Function to allocate memory for a process
 bool allocateMemoryPage(int memReq, int pid) {
     int totalFrames = maxOverallMem / memPerFrame;
-    int requiredFrames = std::ceil(static_cast<double>(memReq) / memPerFrame);
+    int requiredFrames = std::ceil(memReq / memPerFrame);
 
     // Check if the process is already in memory
     for (int frame : memoryBlockPage) {
@@ -276,17 +280,17 @@ private:
     int coreId;                                 // Core executing this process
     std::time_t startTime;                      // Process start time
     std::vector<std::time_t> commandTimestamps; // Timestamps for each command execution
-    int memReq                                  // M is the rolled value between min-mem-per-proc and max-mem-proc
+    int memReq;                   // M is the rolled value between min-mem-per-proc and max-mem-proc
 
 public:
-    Process(int id, int commands, int core)
-        : pid(id), numCommands(commands), numFinishedCommands(0), coreId(core), startTime(0)
+    Process(int id, int commands, int core, int memRequired)
+        : pid(id), numCommands(commands), numFinishedCommands(0), coreId(core), startTime(0), memReq(memRequired)
     {
         pname = std::to_string(id);
     }
 
-    Process(const std::string& procName, int id, int commands, int core)
-        : pname(procName), pid(id), numCommands(commands), numFinishedCommands(0), coreId(core), startTime(0) {}
+    Process(const std::string& procName, int id, int commands, int core, int memRequired)
+        : pname(procName), pid(id), numCommands(commands), numFinishedCommands(0), coreId(core), startTime(0), memReq(memRequired) {}
 
     std::string getName() const
     {
@@ -892,6 +896,8 @@ void handleScreenCommand(const std::string& command, std::vector<Process>& proce
 
     iss >> screenCmd >> option >> name;
 
+    int memoryNeed = memoryReqRandomizer(minMemPerProc, maxMemPerProc);
+
     // -s command creates a new instance of Terminal Class
     if (option == "-s" && !name.empty())
     {
@@ -909,7 +915,7 @@ void handleScreenCommand(const std::string& command, std::vector<Process>& proce
         int commandSize = rand() % (max - min + 1) + min;
 
         // Creates a new instance of the Terminal class and stores it in the vector
-        Process newProcess(name, globalProcessNumber, commandSize, -1);
+        Process newProcess(name, globalProcessNumber, commandSize, -1, memoryNeed);
         globalProcessNumber++;
 
         processes.push_back(newProcess);
@@ -1039,9 +1045,9 @@ void readConfigFile(int& numCore, std::string& mode, int& quantumCycle, int& bat
         else if (param == "max-overall-mem") {
             iss >> maxMemory;
         }
-        /*else if (param == "mem-per-frame") {
+        else if (param == "mem-per-frame") {
             iss >> memoryFrame;
-        }*/
+        }
         else if (param == "min-mem-per-proc") {
             iss >> minMemPerProc;
         }
@@ -1087,6 +1093,7 @@ void handleReportUtilCommand(std::unique_ptr<Scheduler>& scheduler)
 void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, int minCommandNum, int maxCommandNum) {
     schedulerRunning = true;
     stopRequested = false;
+    int memoryNeed = memoryReqRandomizer(minMemPerProc, maxMemPerProc);
 
     // Reinforce minimum batch frequency
     if (batchFrequency < 1) {
@@ -1105,7 +1112,7 @@ void schedulerTestFunction(int batchFrequency, std::vector<Process>& processes, 
         int commandSize = rand() % (maxCommandNum - minCommandNum + 1) + minCommandNum;
         std::string processName = "p" + std::to_string(globalProcessNumber);
 
-        Process newProcess(processName, globalProcessNumber, commandSize, -1);
+        Process newProcess(processName, globalProcessNumber, commandSize, -1, memoryNeed);
         processes.push_back(newProcess);
         globalProcessNumber++;
         // Do not print anything while the scheduler is running
@@ -1157,7 +1164,7 @@ int main()
 
         if (command == "initialize") {
             // TODO: read from config.txt and assign the values
-            readConfigFile(numCore, mode, quantumCycle, batchFrequency, minCommandNum, maxCommandNum, delay, maxMemory, memoryFrame, memoryPerProcess);
+            readConfigFile(numCore, mode, quantumCycle, batchFrequency, minCommandNum, maxCommandNum, delay, maxMemory, memoryFrame, minMemPerProc, maxMemPerProc);
 
             system("cls");
 
@@ -1173,7 +1180,8 @@ int main()
             std::cout << "  -> Delay per Execution   : " << delay << "\n";
             std::cout << "  -> Overall Memory        : " << maxMemory << "\n";
             std::cout << "  -> Memory Per Frame      : " << memoryFrame << "\n";
-            std::cout << "  -> Memory Per Process    : " << memoryPerProcess << "\n";
+            std::cout << "  -> Minmum Memory Per Process    : " << minMemPerProc << "\n";
+            std::cout << "  -> Maximum Memory Per Process    : " << maxMemPerProc << "\n";
             std::cout << "======================================\n";
 
             std::cout << "\nLoading main menu in 3... ";
