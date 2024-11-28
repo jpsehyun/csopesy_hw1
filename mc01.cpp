@@ -80,7 +80,7 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
 
     int x = 0;
     // go through every page in the memoryBlockPage
-    for (int page : memoryBlockPage) {
+    for (int& page : memoryBlockPage) {
         // see 0 = no pid, incremet int x, if int x = reqFrame, canAllocate is true
         if (page == 0) {
             x++;
@@ -90,6 +90,7 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
             // if gone through whole memoryBlockpage and x is less that reqFrame canAllocate is false
             else {
                 canAllocate = false;
+                return false;
             }
         }
     }
@@ -98,7 +99,7 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
     // if canAllocate is true, then turn first empty n frames into desired pid where n is the reqFrame
     if (canAllocate) {
         
-        for (int page : memoryBlockPage) {
+        for (int& page : memoryBlockPage) {
             if (page == 0) {
                 page = pid;
                 flag++;
@@ -111,9 +112,9 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
         }
     }
 
-    else {
-        return false; // Not enough frames available
-    }
+  
+   return false; // Not enough frames available
+    
     
 }
 
@@ -597,16 +598,17 @@ public:
                     processQueue.pop();  // Pop it from the queue
 
                     if (maxMemory == memoryFrame) {
-                        allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
-                        if (!allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock) && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
+                        bool allocationSuccess = allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
+
+                        if (!allocationSuccess && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
                             int oldest = insertionOrder.front();
                             insertionOrder.pop();
 
                             deallocateMemory(oldest, memoryBlock);
+                            pidSet.erase(oldest);
                             allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
                         }
-                        allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
-
+                       
                         if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
                             processPtr->setCoreId(coreId);
                             if (processPtr->getStartTime() == 0) {
@@ -624,17 +626,19 @@ public:
                         }
                     }
                     else {
-                        allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
-                        if (!allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage) && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
+                        bool allocationSuccess = allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+
+                        if (!allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
                             int oldest = insertionOrder.front();
                             insertionOrder.pop();
 
                             deallocateMemoryPage(oldest, memoryBlockPage);
+                            pidSet.erase(oldest);
                             allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
                         }
-                        allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+                       
 
-                        if (!isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
+                        if (isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
                             processPtr->setCoreId(coreId);
                             if (processPtr->getStartTime() == 0) {
                                 processPtr->setStartTime();
@@ -1242,7 +1246,6 @@ void processSmi(std::vector<Process>& processes, std::unique_ptr<Scheduler>& sch
     std::cout << "Running processes and memory usage:\n";
     std::cout << "----------------------------------------------------------------\n";
     scheduler -> printCoreStatusMemory();
-    std::cout << "----------------------------------------------------------------\n";
 }
 
 int main()
