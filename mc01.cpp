@@ -623,6 +623,16 @@ public:
                             }
                             if (temp != nullptr) {
                                 pageOut += temp->getMemReq();
+                                std::ofstream file("backing_store_log.txt", std::ios::app);
+                                if (file) {
+
+                                    file << "Process Name: " << temp->getName()
+                                        << ",  PID: " << temp->getPid()
+                                        << ",  [Entry Backing Store]"
+                                        << std::endl;
+
+                                    file.close();
+                                }
                             }
                             
                             pidSet.erase(oldest);
@@ -667,11 +677,21 @@ public:
                             }
                             if (temp != nullptr) {
                                 pageOut += temp->getMemReq();
+                                std::ofstream file("backing_store_log.txt", std::ios::app);
+                                if (file) {
+
+                                    file << "Process Name: " << temp->getName()
+                                        << ",  PID: " << temp->getPid()
+                                        << ",  [Entry Backing Store]"
+                                        << std::endl;
+
+                                    file.close();
+                                }
                             }
 
                             pidSet.erase(oldest);
                             allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
-                            pageIn += processPtr->getMemReq();
+                          
                             
                         }
                        
@@ -732,12 +752,32 @@ public:
                 if (maxMemory == memoryFrame) {
                     deallocateMemory(processPtr->getPid(), memoryBlock);
                     pageOut += processPtr->getMemReq();
+                    std::ofstream file("backing_store_log.txt", std::ios::app);
+                    if (file) {
+
+                        file << "Process Name: " << processPtr->getName()
+                            << ",  PID: " << processPtr->getPid()
+                            << ",  [Entry Backing Store]"
+                            << std::endl;
+
+                        file.close();
+                    }
 
                     pidSet.erase(processPtr->getPid());
                 }
                 else {
                     deallocateMemoryPage(processPtr->getPid(), memoryBlockPage);
                     pageOut += processPtr->getMemReq();
+                    std::ofstream file("backing_store_log.txt", std::ios::app);
+                    if (file) {
+
+                        file << "Process Name: " << processPtr->getName()
+                            << ",  PID: " << processPtr->getPid()
+                            << ",  [Entry Backing Store]"
+                            << std::endl;
+
+                        file.close();
+                    }
 
                     pidSet.erase(processPtr->getPid());
                 }
@@ -1353,11 +1393,24 @@ void vmstat(std::vector<Process>& processes, std::unique_ptr<Scheduler>& schedul
     std::cout << "Pages Paged Out: " << numPagedOut << "\n";
 }
 
+void initializeLogFile(const std::string& fileName) {
+
+    std::ofstream file(fileName, std::ios::trunc);
+    if (!file) {
+        std::cerr << "Error: Unable to initialize the log file!" << std::endl;
+        return;
+    }
+    file.close(); 
+}
+
 int main()
 {
     printASCII();
     printWelcomeMessage();
     printMessage();
+
+    std::string logFileName = "backing_store_log.txt";
+    initializeLogFile(logFileName);
 
     bool active = true;
     bool isTerminalOpen = false;
