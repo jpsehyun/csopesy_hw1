@@ -39,6 +39,9 @@ int maxMemPerProc;
 
 float cpuUtil = 0.0f;
 
+int pageIn;
+int pageOut; 
+
 std::set<int> pidSet; // I need to know the order of pID that is being worked on to print
 
 int tempQuantum = 0;
@@ -70,7 +73,7 @@ void initializeMemoryBlockPage() {
 // Function to allocate memory for a process
 bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) {
     int totalFrames = maxMemory / memoryFrame;
-    int requiredFrames = std::ceil(memReq / memoryFrame);
+    int requiredFrames = (memReq / memoryFrame);
     bool canAllocate = true;
 
     // Check if the process is already in memory
@@ -601,6 +604,7 @@ public:
 
                     if (maxMemory == memoryFrame) {
                         bool allocationSuccess = allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
+                        pageIn += processPtr->getMemReq();
 
                         if (!allocationSuccess && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
                             int oldest = 0;
@@ -610,8 +614,20 @@ public:
                             }
 
                             deallocateMemory(oldest, memoryBlock);
+                            Process* temp = nullptr;
+                            for (Process& process : processes) {
+                                if (process.getPid() == oldest) {
+                                    temp = &process;
+                                    break;
+                                }
+                            }
+                            if (temp != nullptr) {
+                                pageOut += temp->getMemReq();
+                            }
+                            
                             pidSet.erase(oldest);
                             allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
+                            pageIn += processPtr->getMemReq();
                         }
                        
                         if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
@@ -632,6 +648,7 @@ public:
                     }
                     else {
                         bool allocationSuccess = allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+                        pageIn += processPtr->getMemReq();
 
                         if (!allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
                             int oldest = 0;
@@ -641,8 +658,21 @@ public:
                             }
 
                             deallocateMemoryPage(oldest, memoryBlockPage);
+                            Process* temp = nullptr;
+                            for (Process& process : processes) {
+                                if (process.getPid() == oldest) {
+                                    temp = &process;
+                                    break;
+                                }
+                            }
+                            if (temp != nullptr) {
+                                pageOut += temp->getMemReq();
+                            }
+
                             pidSet.erase(oldest);
                             allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
+                            pageIn += processPtr->getMemReq();
+                            
                         }
                        
 
@@ -701,10 +731,14 @@ public:
             else {
                 if (maxMemory == memoryFrame) {
                     deallocateMemory(processPtr->getPid(), memoryBlock);
+                    pageOut += processPtr->getMemReq();
+
                     pidSet.erase(processPtr->getPid());
                 }
                 else {
                     deallocateMemoryPage(processPtr->getPid(), memoryBlockPage);
+                    pageOut += processPtr->getMemReq();
+
                     pidSet.erase(processPtr->getPid());
                 }
 
@@ -1281,6 +1315,44 @@ void processSmi(std::vector<Process>& processes, std::unique_ptr<Scheduler>& sch
     scheduler -> printCoreStatusMemory();
 }
 
+void vmstat(std::vector<Process>& processes, std::unique_ptr<Scheduler>& scheduler){
+    int totalMemory = maxMemory; // Total main memory in KB.
+    int usedMemory = 0; // Total active memory used by processes.
+    int freeMemory = 0; // Total free memory that can still be used by other processes.
+    int idleCpuTicks = 0; // Number of ticks wherein CPU cores remained idle.
+    int activeCpuTicks = 0; // Number of ticks wherein CPU cores are actually executing instructions.
+    int totalCpuTicks = 0; // Number of ticks that passed for all CPU cores.
+    int numPagedIn = pageIn; // Accumulated number of pages paged in.
+    int numPagedOut = pageOut; // Accumulated number of pages paged out.
+
+    // used Memory
+    for (int pid : pidSet) {
+        for (const auto& process : processes) {
+            if (process.getPid() == pid) {
+                usedMemory += process.getMemReq(); // Add memory usage of this process
+                break; // Stop searching after the correct process is found
+            }
+        }
+    }
+
+    // free memory
+    freeMemory = totalMemory - usedMemory;
+
+    // idle Cpu Ticks
+
+    // active Cpu Ticks
+
+    // Total CPU Ticks
+    totalCpuTicks = idleCpuTicks + activeCpuTicks; 
+    
+    // PRINTING
+    std::cout << "Total Memory: " << totalMemory << "kb\n";
+    std::cout << "Used Memory: " << usedMemory << "kb\n";
+    std::cout << "Free Memory: " << freeMemory << "kb\n";
+    std::cout << "Pages Paged In: " << numPagedIn << "\n";
+    std::cout << "Pages Paged Out: " << numPagedOut << "\n";
+}
+
 int main()
 {
     printASCII();
@@ -1441,6 +1513,9 @@ int main()
         else if (command == "process-smi")
         {
             processSmi(std::ref(processes), scheduler);
+        }
+        else if (command == "vmstat") {
+            vmstat(std::ref(processes), scheduler);
         }
         else
         {
