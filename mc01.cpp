@@ -627,7 +627,7 @@ public:
                     else {
                         bool allocationSuccess = allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
 
-                        if (!allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
+                        if (allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
                             int oldest = insertionOrder.front();
                             insertionOrder.pop();
 
