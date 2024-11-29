@@ -600,8 +600,11 @@ public:
                         bool allocationSuccess = allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
 
                         if (!allocationSuccess && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
-                            int oldest = insertionOrder.front();
-                            insertionOrder.pop();
+                            int oldest = 0;
+                            if (!insertionOrder.empty()) {
+                                oldest = insertionOrder.front();
+                                insertionOrder.pop();
+                            }
 
                             deallocateMemory(oldest, memoryBlock);
                             pidSet.erase(oldest);
@@ -627,9 +630,12 @@ public:
                     else {
                         bool allocationSuccess = allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
 
-                        if (allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
-                            int oldest = insertionOrder.front();
-                            insertionOrder.pop();
+                        if (!allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
+                            int oldest = 0;
+                            if (!insertionOrder.empty()) {
+                                oldest = insertionOrder.front();
+                                insertionOrder.pop();
+                            }
 
                             deallocateMemoryPage(oldest, memoryBlockPage);
                             pidSet.erase(oldest);
