@@ -104,7 +104,7 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
     int flag = 0;
     // if canAllocate is true, then turn first empty n frames into desired pid where n is the reqFrame
     if (canAllocate) {
-        pageIn += requiredFrames;
+        //pageIn += requiredFrames;
         for (int& page : memoryBlockPage) {
             if (page == 0) {
                 page = pid;
@@ -624,7 +624,7 @@ public:
 
                     if (maxMemory == memoryFrame) {
                         bool allocationSuccess = allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
-
+                        pageIn += processPtr->getMemReq();
                         if (!allocationSuccess && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
                             int oldest = 0;
                             if (!insertionOrder.empty()) {
@@ -678,8 +678,8 @@ public:
                     else {
                        
                         bool allocationSuccess = allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
-                      
-
+                        pageIn += processPtr->getMemReq();
+                            
                         if (!allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
                             int oldest = 0;
                             if (!insertionOrder.empty()) {
@@ -1389,7 +1389,7 @@ void vmstat(std::vector<Process>& processes, std::unique_ptr<Scheduler>& schedul
     int idleCpuTicks = 0; // Number of ticks wherein CPU cores remained idle.
     int activeCpuTicks = 0; // Number of ticks wherein CPU cores are actually executing instructions.
     int totalCpuTicks = 0; // Number of ticks that passed for all CPU cores.
-    int numPagedIn = pageIn; // Accumulated number of pages paged in.
+    int numPagedIn = pageIn / int(memoryFrame); // Accumulated number of pages paged in.
     int numPagedOut = pageOut; // Accumulated number of pages paged out.
 
     // used Memory
