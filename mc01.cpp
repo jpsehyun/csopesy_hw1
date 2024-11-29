@@ -36,11 +36,13 @@ int maxOverallMem;
 int memPerFrame;
 int minMemPerProc;
 int maxMemPerProc;
+std::atomic<long int> idleTick = 0;
+std::atomic<long int> activeTick = 0;
 
 float cpuUtil = 0.0f;
 
-int pageIn;
-int pageOut; 
+std::atomic<int> pageIn;
+std::atomic<int> pageOut;
 
 std::set<int> pidSet; // I need to know the order of pID that is being worked on to print
 
@@ -102,7 +104,7 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
     int flag = 0;
     // if canAllocate is true, then turn first empty n frames into desired pid where n is the reqFrame
     if (canAllocate) {
-        
+        pageIn += requiredFrames;
         for (int& page : memoryBlockPage) {
             if (page == 0) {
                 page = pid;
@@ -122,14 +124,6 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
     
 }
 
-// Function to deallocate memory for a process
-void deallocateMemoryPage(int pid, std::vector<int>& memoryBlockPage) {
-    for (int& frame : memoryBlockPage) {
-        if (frame == pid) {
-            frame = 0; // Mark frame as free
-        }
-    }
-}
 
 // Function to calculate external fragmentation in KB
 int calculateExternalFragmentationPage(std::vector<int>& memoryBlockPage) {
@@ -543,6 +537,32 @@ public:
 // Vector of processes moved to global var
 std::vector<Process> processes;
 
+// Function to deallocate memory for a process
+void deallocateMemoryPage(int pid, std::vector<int>& memoryBlockPage) {
+ 
+    bool success = false;
+
+    for (int& frame : memoryBlockPage) {
+        if (frame == pid) {
+            frame = 0; // Mark frame as free
+            success = true;
+        }
+    }
+    if (success) {
+        Process* temp = nullptr;
+        for (Process& process : processes) {
+            if (process.getPid() == pid) {
+                temp = &process;
+                break;
+            }
+        }
+
+        pageOut += temp->getMemReq();
+    }
+
+}
+
+
 class Scheduler { // Allows different schedulers (like FCFS or RR) to be used interchangeably
 public:
     virtual ~Scheduler() = default;
@@ -604,7 +624,6 @@ public:
 
                     if (maxMemory == memoryFrame) {
                         bool allocationSuccess = allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
-                        pageIn += processPtr->getMemReq();
 
                         if (!allocationSuccess && !isProcessInMemory(memoryBlock, processPtr->getPid())) {
                             int oldest = 0;
@@ -637,7 +656,7 @@ public:
                             
                             pidSet.erase(oldest);
                             allocateMemory(processPtr->getMemReq(), processPtr->getPid(), memoryBlock);
-                            pageIn += processPtr->getMemReq();
+    
                         }
                        
                         if (isProcessInMemory(memoryBlock, processPtr->getPid())) {
@@ -657,8 +676,9 @@ public:
                         }
                     }
                     else {
+                       
                         bool allocationSuccess = allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
-                        pageIn += processPtr->getMemReq();
+                      
 
                         if (!allocationSuccess && !isProcessInMemoryPage(processPtr->getPid(), memoryBlockPage)) {
                             int oldest = 0;
@@ -691,7 +711,7 @@ public:
 
                             pidSet.erase(oldest);
                             allocateMemoryPage(processPtr->getMemReq(), processPtr->getPid(), memoryBlockPage);
-                          
+                            
                             
                         }
                        
@@ -784,7 +804,14 @@ public:
 
             }
 
-            coreBusy[coreId] = false;  // Mark the core as idle after processing
+            if (coreBusy[coreId]) {
+                activeTick++;
+            }
+            else if (!coreBusy[coreId]) {
+                idleTick++;
+            }
+
+            coreBusy[coreId] = false; 
         }
     }
 
@@ -1389,6 +1416,9 @@ void vmstat(std::vector<Process>& processes, std::unique_ptr<Scheduler>& schedul
     std::cout << "Total Memory: " << totalMemory << "kb\n";
     std::cout << "Used Memory: " << usedMemory << "kb\n";
     std::cout << "Free Memory: " << freeMemory << "kb\n";
+    std::cout << "Idle CPU Tick: " << idleTick << "\n";
+    std::cout << "Active CPU Tick: " << activeTick << "\n";
+    std::cout << "Total CPU Tick: " << idleTick + activeTick << "\n";
     std::cout << "Pages Paged In: " << numPagedIn << "\n";
     std::cout << "Pages Paged Out: " << numPagedOut << "\n";
 }
