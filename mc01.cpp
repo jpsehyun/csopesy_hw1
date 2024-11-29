@@ -37,6 +37,8 @@ int memPerFrame;
 int minMemPerProc;
 int maxMemPerProc;
 
+float cpuUtil = 0.0f;
+
 std::set<int> pidSet; // I need to know the order of pID that is being worked on to print
 
 int tempQuantum = 0;
@@ -544,6 +546,7 @@ public:
     virtual void addProcess(const Process& p) = 0;
     virtual void printCoreStatus() = 0;
     virtual void printCoreStatusMemory() = 0;
+    virtual float cpuUtilFunction() = 0;
     virtual std::string formatTime(std::time_t time) = 0;
     bool memoryFull = false;
 };
@@ -775,6 +778,19 @@ public:
             }
         }
     }
+
+    float cpuUtilFunction() override {
+        float runningCore = 0.0;
+        float tempNumcore = float(numCores);
+        for (int coreId = 0; coreId < numCores; coreId++) {
+            if (coreBusy[coreId]) {
+                runningCore++;
+            }
+
+            cpuUtil = (runningCore / tempNumcore) * 100;
+        }
+        return cpuUtil;
+    }
 };
 
 class FCFS_Scheduler : public Scheduler
@@ -912,23 +928,35 @@ public:
 
     void printCoreStatusMemory() override
     {
-   
+        std::vector<std::shared_ptr<Process>> activeProcesses(numCores, nullptr);
 
-        std::cout << "Current Status of Running Processes:\n";
-        for (const auto& process : allProcesses)
-        {
-            // Only show processes that have been assigned to a core and are not finished
-            if (process->getCoreId() >= 0 && !process->isFinished())
-            {
-                std::string startTimeFormatted = formatTime(process->getStartTime());
-
-                std::cout << "Process " << process->getName() << " (" << startTimeFormatted << ") (Core "
-                    << process->getCoreId() << "): "
-                    << process->getFinishedCommands() << "/" << process->getTotalCommands() << " commands executed.\n";
+        for (const auto& process : allProcesses) {
+            if (!process->isFinished() && process->getCoreId() >= 0) {
+                activeProcesses[process->getCoreId()] = process; // Assign the process to its core
             }
         }
 
-        
+        for (int coreId = 0; coreId < numCores; coreId++) {
+            if (activeProcesses[coreId]) {
+                std::string startTimeFormatted = formatTime(activeProcesses[coreId]->getStartTime());
+                std::cout << "Process " << activeProcesses[coreId]->getName() << " " << activeProcesses[coreId]->getMemReq() << "MiB" << "\n";
+            }
+        }
+       
+    }
+
+    float cpuUtilFunction() override {
+        float runningCore = 0.0;
+        float tempNumcore = float(numCores);
+        for (int coreId = 0; coreId < numCores; coreId++) {
+            if (coreBusy[coreId]) {
+                runningCore++;
+            }
+
+            cpuUtil = (runningCore / tempNumcore) * 100;
+        }
+
+        return cpuUtil;
     }
 };
 
@@ -1208,7 +1236,7 @@ void stopSchedulerTest() {
 
 void processSmi(std::vector<Process>& processes, std::unique_ptr<Scheduler>& scheduler) {
 
-    float cpuUtilization = 0.0f; // CPU-Util
+    //float cpuUtilization = 0.0f; // CPU-Util
     int usedMemory = 0; // Memory Usage
     int totalMemory = maxMemory; // Memory Usage
 
@@ -1243,7 +1271,7 @@ void processSmi(std::vector<Process>& processes, std::unique_ptr<Scheduler>& sch
     std::cout << "|                          PROCESS-SMI                         |\n";
     std::cout << "----------------------------------------------------------------\n";
 
-    std::cout << "CPU-Util: " << cpuUtilization << "%\n";
+    std::cout << "CPU-Util: " << scheduler -> cpuUtilFunction() << "%\n";
     std::cout << "Memory Usage: " << usedMemory << "MiB / " << totalMemory << "MiB\n";
     std::cout << "Memory Utilization: " << memoryUtilization << "%\n\n";
 
