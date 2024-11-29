@@ -90,7 +90,6 @@ bool allocateMemoryPage(int memReq, int pid, std::vector<int>& memoryBlockPage) 
             // if gone through whole memoryBlockpage and x is less that reqFrame canAllocate is false
             else {
                 canAllocate = false;
-                return false;
             }
         }
     }
